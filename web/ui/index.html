@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<!--
+  index.html — Generated from ui-definition.yaml
+  Source: deployments/web/src/ui-definition.yaml
+  DO NOT EDIT — run: task web:ui:generate
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GMAT — Web GUI</title>
+<link rel="icon" type="image/x-icon" href="./assets/GMAT.ico">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.172.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.172.0/examples/jsm/"
+  }
+}
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/matlab.min.js"></script>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<!-- Header: Menu Bar + Toolbar -->
+<header id="app-header">
+  <nav id="menu-bar">
+    <div class="menu-item">File
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" id="menu-new-script">New Script <span class="shortcut">Ctrl+Shift+N</span></div>
+        <div class="menu-dropdown-item" id="menu-new-mission">New Mission <span class="shortcut">Ctrl+N</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-open-script">Open... <span class="shortcut">Ctrl+O</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-save-script">Save Script <span class="shortcut">Ctrl+S</span></div>
+        <div class="menu-dropdown-item" id="menu-save-script-as">Save Script As... <span class="shortcut">F12</span></div>
+      </div>
+    </div>
+    <div class="menu-item">Edit
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" id="menu-undo">Undo <span class="shortcut">Ctrl+Z</span></div>
+        <div class="menu-dropdown-item" id="menu-redo">Redo <span class="shortcut">Ctrl+Y</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-cut">Cut <span class="shortcut">Ctrl+X</span></div>
+        <div class="menu-dropdown-item" id="menu-copy">Copy <span class="shortcut">Ctrl+C</span></div>
+        <div class="menu-dropdown-item" id="menu-paste">Paste <span class="shortcut">Ctrl+V</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-select-all">Select All <span class="shortcut">Ctrl+A</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-find">Find & Replace... <span class="shortcut">Ctrl+F</span></div>
+        <div class="menu-dropdown-item" id="menu-find-next">Find Next <span class="shortcut">F3</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-comment">Comment <span class="shortcut">Ctrl+/</span></div>
+        <div class="menu-dropdown-item" id="menu-uncomment">Uncomment <span class="shortcut">Ctrl+Shift+/</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-goto-line">Go to Line... <span class="shortcut">Ctrl+L</span></div>
+        <div class="menu-dropdown-item" id="menu-indent-more">Indent More <span class="shortcut">Ctrl+]</span></div>
+        <div class="menu-dropdown-item" id="menu-indent-less">Indent Less <span class="shortcut">Ctrl+[</span></div>
+      </div>
+    </div>
+    <div class="menu-item">Run
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" id="menu-run">Run Script <span class="shortcut">F5</span></div>
+        <div class="menu-dropdown-item" id="menu-stop">Stop <span class="shortcut">Shift+F5</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-generate">Generate Script <span class="shortcut">Ctrl+G</span></div>
+      </div>
+    </div>
+    <div class="menu-item">Window
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" id="menu-close-tab">Close Current Tab <span class="shortcut">Ctrl+W</span></div>
+        <div class="menu-dropdown-item" id="menu-close-all">Close All Tabs</div>
+      </div>
+    </div>
+    <div class="menu-item" id="menu-help-top">Help
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" id="menu-welcome">Welcome Page <span class="shortcut">Ctrl+F1</span></div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-help-contents">User Guide <span class="shortcut">F1</span></div>
+        <div class="menu-dropdown-item" id="menu-help-tutorials">Tutorials</div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-help-report">Report an Issue</div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-help-docs">GMAT Documentation</div>
+        <div class="menu-dropdown-item" id="menu-help-console">Simple Console</div>
+        <div class="menu-dropdown-item" id="menu-help-earth">Earth Viewer</div>
+        <hr>
+        <div class="menu-dropdown-item" id="menu-about">About GMAT Web GUI</div>
+      </div>
+    </div>
+    <span id="version-info"></span>
+  </nav>
+  <div id="toolbar">
+    <button class="tb-btn" id="btn-new-mission" title="New Mission (Ctrl+N)">New Mission</button>
+    <button class="tb-btn" id="btn-open" title="Open Script (Ctrl+O)">Open</button>
+    <button class="tb-btn" id="btn-save" title="Save Script (Ctrl+S)">Save</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn primary" id="btn-run" disabled title="Run Script (F5)">▶ Run</button>
+    <button class="tb-btn" id="btn-stop" disabled title="Stop (Shift+F5)">■ Stop</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-generate" title="Generate Script (Ctrl+G)">Generate Script</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-example" title="Load Sample">Load Sample</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-close-all" title="Close All Tabs">Close All</button>
+    <span id="status-indicator" class="loading">Loading WASM...</span>
+  </div>
+  <input type="file" id="file-input" accept=".script,.gmat,.txt" style="display:none">
+</header>
+
+<!-- App Body: Left Panel + Resize + Main Content -->
+<div id="app-body">
+  <aside id="left-panel">
+    <div id="left-tabs">
+      <button class="left-tab active" data-tab="resources">Resources</button>
+      <button class="left-tab" data-tab="mission">Mission</button>
+      <button class="left-tab" data-tab="output">Output</button>
+    </div>
+    <div id="resources-panel" class="left-panel-content active"></div>
+    <div id="mission-panel" class="left-panel-content"></div>
+    <div id="output-panel" class="left-panel-content">
+      <div style="padding:12px;color:var(--overlay0);font-size:12px;">Run a mission to see outputs here.</div></div>
+  </aside>
+  <div class="resize-h" id="resize-h"></div>
+  <main id="main-content">
+    <div id="tab-bar"></div>
+    <div id="tab-content"></div>
+  </main>
+</div>
+
+<!-- Console Panel -->
+<div id="resize-v"></div>
+<div id="console-panel">
+  <div id="console-header">
+    Console Output
+    <span class="spacer"></span>
+    <span id="console-line-count">0 lines</span>
+    <button id="console-clear-btn">Clear</button>
+  </div>
+  <div id="console-output"></div>
+</div>
+
+<!-- Welcome / About Dialog -->
+<div class="dialog-overlay" id="dialog-overlay">
+  <div class="dialog" id="dialog-content"></div>
+</div>
+
+<!-- Earth vertex shader -->
+<script id="earthVertex" type="x-shader/x-vertex">
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vPosition;
+void main() {
+    vUv = uv;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = mvPosition.xyz;
+    gl_Position = projectionMatrix * mvPosition;
+}
+</script>
+
+<!-- Earth fragment shader -->
+<script id="earthFragment" type="x-shader/x-fragment">
+precision highp float;
+uniform sampler2D uDayTexture;
+uniform vec3 uSunDirection;
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vPosition;
+void main() {
+    vec3 normal = normalize(vNormal);
+    vec3 viewDir = normalize(-vPosition);
+    float sunDot = dot(normal, uSunDirection);
+    float dayFactor = smoothstep(-0.1, 0.2, sunDot);
+    vec3 dayColor = texture2D(uDayTexture, vUv).rgb;
+    float lum = dot(dayColor, vec3(0.299, 0.587, 0.114));
+    vec3 nightBase = dayColor * 0.015;
+    float landMask = smoothstep(0.08, 0.18, lum) * smoothstep(0.6, 0.3, lum);
+    vec2 gridUv = vUv * vec2(400.0, 200.0);
+    vec2 cell = floor(gridUv);
+    float hash = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+    float lightDot = step(0.72, hash) * landMask;
+    vec3 nightColor = nightBase + vec3(1.0, 0.85, 0.55) * lightDot * 0.5;
+    vec3 color = mix(nightColor, dayColor, dayFactor);
+    float oceanMask = smoothstep(0.18, 0.06, lum);
+    vec3 halfDir = normalize(uSunDirection + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 80.0);
+    color += vec3(1.0, 0.97, 0.92) * spec * oceanMask * dayFactor * 0.6;
+    float fresnel = 1.0 - dot(viewDir, normal);
+    fresnel = pow(fresnel, 3.0);
+    vec3 atmosColor = vec3(0.3, 0.6, 1.0);
+    float twilightFactor = smoothstep(-0.1, 0.0, sunDot) * smoothstep(0.2, 0.05, sunDot);
+    vec3 twilightColor = mix(atmosColor, vec3(0.9, 0.4, 0.1), twilightFactor * 0.6);
+    color = mix(color, twilightColor, fresnel * 0.5 * smoothstep(-0.2, 0.3, sunDot));
+    gl_FragColor = vec4(color, 1.0);
+}
+</script>
+
+<!-- Atmosphere vertex shader -->
+<script id="atmosVertex" type="x-shader/x-vertex">
+varying vec3 vNormal;
+varying vec3 vPosition;
+void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = mvPosition.xyz;
+    gl_Position = projectionMatrix * mvPosition;
+}
+</script>
+
+<!-- Atmosphere fragment shader -->
+<script id="atmosFragment" type="x-shader/x-fragment">
+precision highp float;
+uniform vec3 uSunDirection;
+varying vec3 vNormal;
+varying vec3 vPosition;
+void main() {
+    vec3 normal = normalize(vNormal);
+    vec3 viewDir = normalize(-vPosition);
+    float fresnel = dot(viewDir, normal);
+    fresnel = pow(fresnel, 2.0);
+    float sunFacing = dot(normal, uSunDirection);
+    float intensity = sunFacing * 0.6 + 0.4;
+    intensity = max(intensity, 0.0);
+    float twilight = smoothstep(-0.2, 0.0, sunFacing) * smoothstep(0.3, 0.0, sunFacing);
+    vec3 dayAtmos = vec3(0.3, 0.6, 1.0);
+    vec3 twilightAtmos = vec3(0.8, 0.35, 0.05);
+    vec3 atmosColor = mix(dayAtmos, twilightAtmos, twilight * 0.7);
+    float alpha = fresnel * intensity * 0.65;
+    gl_FragColor = vec4(atmosColor, alpha);
+}
+</script>
+
+<!-- Application JavaScript (ES Module) -->
+<script type="module" src="./main.js"></script>
+</body>
+</html>

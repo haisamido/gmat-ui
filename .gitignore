@@ -1,0 +1,6 @@
+# Task runner checksum directory
+.task/
+
+# Build output
+cmake-build/
+application/

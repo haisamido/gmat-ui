@@ -1,0 +1,70 @@
+# Sample scripts that work with GMAT WASM (no disabled plugin dependencies)
+# One script name per line (without .script extension)
+# Lines starting with # are comments
+
+# Tutorials
+Tut_SimulatingAnOrbit
+Tut_SimpleOrbitTransfer
+Tut_Mars_B_Plane_Targeting
+Tut_Target_Finite_Burn_to_Raise_Apogee
+Tut_Inter_Spacecraft_Tracking
+
+# Core Examples
+Ex_ControlFlow
+Ex_MathInScript
+Ex_Integrators
+Ex_HohmannTransfer
+Ex_GEOTransfer
+Ex_FiniteBurn
+Ex_ForceModels
+Ex_SafetyEllipse
+Ex_MarsBPlane
+Ex_MarsOrbit
+Ex_FileInterface
+Ex_Basic3DModel
+Ex_ConstellationScript
+
+# Attitude
+Ex_Attitude_Spinner
+Ex_Attitude_Inertial
+Ex_Attitude_ModifiedRodriguesParameters
+Ex_Attitude_NadirPointing
+Ex_Attitude_VNB
+
+# Lunar & Interplanetary
+Ex_LunarTransfer
+Ex_DoubleLunarSwingby
+Ex_MMSSingleLunarSwingby
+Ex_GivenEpochGoToTheMoon
+Ex_LCROSSTrajectory
+Ex_L2Design
+Ex_LibrationPointStationKeeping_ESM
+Ex_LEOStationKeeping
+Ex_LunarOrbitStationKeeping
+
+# Targeting
+Ex_TargetFiniteBurn_CenterPeriapsisDuration
+Ex_TargetFiniteBurn_CenterPeriapsisTA
+Ex_SPICEOrbitAndAttitudePropagation
+
+# Features
+Ex_CCSDSAEMAttitude
+Ex_CustomSegmentColors
+Ex_HighFidelitySRP
+Ex_ImprovedTargeterAlgorithms
+Ex_NadirPointingAttitude
+Ex_NewOrbitStateReps
+Ex_PrecessingSpinnerAttitude
+Ex_SolverConvergenceParameters
+Ex_ElectricPropulsion
+Ex_TargetStatusWindow
+Ex_EOPFileLocationFromScript
+Ex_FiniteBurnParameters
+Ex_NewMathFunctions
+Ex_NewStringFunctions
+Ex_ThrusterWithMultipleTanks
+Ex_WriteCommand
+Ex_STKEphemOutput
+Ex_CommandEcho_GEOTransfer
+Ex_AnalyticMassProperties
+Ex_MultibodySphericalHarmonicGravity

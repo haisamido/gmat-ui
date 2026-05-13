@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "description": "GMAT Web GUI sources - ES modules enabled for Node.js CLI tools"
+}

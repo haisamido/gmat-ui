@@ -1,0 +1,20 @@
+# Local native build artifacts (rebuilt inside Docker)
+cmake-build/
+application/
+docker-output/
+.task/
+
+# WebAssembly local build artifacts (rebuilt inside Docker)
+web/build/
+web/deps/
+web/out/
+web/ui/node_modules/
+web/src/scripts/node_modules/
+
+# IDE/editor files
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/
+*.sublime-*

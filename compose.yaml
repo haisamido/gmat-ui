@@ -1,0 +1,56 @@
+name: gmat
+
+services:
+  gmat-web:
+    build:
+      context: ${CONTAINER_CONTEXT:-.}
+      dockerfile: ${CONTAINER_FILE:-Containerfile}
+      target: wasm
+    image: ${CONTAINER_IMAGE:-gmat-builder}:${CONTAINER_TAG:-latest}
+    hostname: gmat-web
+    container_name: gmat-web
+    ports:
+      - "${SERVICE_HOST_PORT:-8989}:${SERVICE_PORT:-8989}"
+    volumes:
+      - ../application/samples:/gmat/application/samples:ro
+    environment:
+      - PORT=${SERVICE_PORT:-8989}
+      - GMAT_WEB_HOST=${GMAT_WEB_HOST:-localhost}
+      - GIT_COMMIT=${GIT_COMMIT:-}
+    # healthcheck:
+    #   test: ["CMD-SHELL", "node -e \"require('http').get('http://' + process.env.GMAT_WEB_HOST + ':' + process.env.PORT + '/', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 3
+    #   start_period: 10s
+    networks:
+      - gmat-network
+    restart: unless-stopped
+
+  gmat-x11:
+    build:
+      context: ${CONTAINER_CONTEXT:-.}
+      dockerfile: ${CONTAINER_FILE:-Containerfile}
+      target: native-gui
+    image: gmat-native-gui:${CONTAINER_TAG:-latest}
+    hostname: gmat-x11
+    container_name: gmat-x11
+    environment:
+      - DISPLAY=${GMAT_DISPLAY:-host.docker.internal:0}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_SOFTWARE=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ../application/samples:/gmat/application/samples:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pidof GMAT || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - gmat-network
+
+networks:
+  gmat-network:
+    driver: bridge

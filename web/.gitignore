@@ -1,0 +1,8 @@
+# WASM build artifacts
+build/
+deps/
+out/
+application/
+
+# Node dependencies (downloaded fresh by npm install)
+node_modules/

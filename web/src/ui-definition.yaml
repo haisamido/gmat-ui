@@ -1,0 +1,2736 @@
+# GMAT WebAssembly UI Definition
+# Complete declarative specification of the GMAT Web GUI
+# Generated from codebase analysis of deployments/web/src/gui/
+
+version: "1.0"
+name: GMAT Web GUI
+description: General Mission Analysis Tool - WebAssembly Interface
+cppReference: src/gui/app/GmatMainFrame.cpp
+
+# =============================================================================
+# Application Layout
+# =============================================================================
+layout:
+  type: split-panel
+  direction: horizontal
+  children:
+    - id: left-panel
+      width: 280px
+      minWidth: 200px
+      maxWidth: 500px
+      resizable: true
+      tabs:
+        - id: resources
+          label: Resources
+          default: true
+        - id: mission
+          label: Mission
+        - id: output
+          label: Output
+
+    - id: main-content
+      flex: 1
+      contains:
+        - tabBar: true
+        - tabContent: true
+
+    - id: console-panel
+      position: bottom
+      height: 200px
+      minHeight: 100px
+      resizable: true
+      collapsible: true
+
+# =============================================================================
+# Menu Bar
+# =============================================================================
+menuBar:
+  items:
+    - label: File
+      items:
+        - id: menu-new-script
+          label: New Script
+          shortcut: Ctrl+Shift+N
+          action: newScript
+        - id: menu-new-mission
+          label: New Mission
+          shortcut: Ctrl+N
+          action: newMission
+        - separator: true
+        - id: menu-open-script
+          label: Open...
+          shortcut: Ctrl+O
+          action: openScript
+        - separator: true
+        - id: menu-save-script
+          label: Save Script
+          shortcut: Ctrl+S
+          action: saveScript
+        - id: menu-save-script-as
+          label: Save Script As...
+          shortcut: F12
+          action: saveScriptAs
+
+    - label: Edit
+      items:
+        - id: menu-undo
+          label: Undo
+          shortcut: Ctrl+Z
+          action: undo
+        - id: menu-redo
+          label: Redo
+          shortcut: Ctrl+Y
+          action: redo
+        - separator: true
+        - id: menu-cut
+          label: Cut
+          shortcut: Ctrl+X
+          action: cut
+        - id: menu-copy
+          label: Copy
+          shortcut: Ctrl+C
+          action: copy
+        - id: menu-paste
+          label: Paste
+          shortcut: Ctrl+V
+          action: paste
+        - separator: true
+        - id: menu-select-all
+          label: Select All
+          shortcut: Ctrl+A
+          action: selectAll
+        - separator: true
+        - id: menu-find
+          label: Find & Replace...
+          shortcut: Ctrl+F
+          action: find
+        - id: menu-find-next
+          label: Find Next
+          shortcut: F3
+          action: findNext
+        - separator: true
+        - id: menu-comment
+          label: Comment
+          shortcut: Ctrl+/
+          action: comment
+        - id: menu-uncomment
+          label: Uncomment
+          shortcut: Ctrl+Shift+/
+          action: uncomment
+        - separator: true
+        - id: menu-goto-line
+          label: Go to Line...
+          shortcut: Ctrl+L
+          action: gotoLine
+        - id: menu-indent-more
+          label: Indent More
+          shortcut: Ctrl+]
+          action: indentMore
+        - id: menu-indent-less
+          label: Indent Less
+          shortcut: Ctrl+[
+          action: indentLess
+
+    - label: Run
+      items:
+        - id: menu-run
+          label: Run Script
+          shortcut: F5
+          action: runMission
+        - id: menu-stop
+          label: Stop
+          shortcut: Shift+F5
+          action: stopMission
+        - separator: true
+        - id: menu-generate
+          label: Generate Script
+          shortcut: Ctrl+G
+          action: generateScript
+
+    - label: Window
+      items:
+        - id: menu-close-tab
+          label: Close Current Tab
+          shortcut: Ctrl+W
+          action: closeCurrentTab
+        - id: menu-close-all
+          label: Close All Tabs
+          action: closeAllTabs
+
+    - label: Help
+      items:
+        - id: menu-welcome
+          label: Welcome Page
+          shortcut: Ctrl+F1
+          action: showWelcome
+        - separator: true
+        - id: menu-help-contents
+          label: User Guide
+          shortcut: F1
+          action: openUserGuide
+        - id: menu-help-tutorials
+          label: Tutorials
+          action: openTutorials
+        - separator: true
+        - id: menu-help-report
+          label: Report an Issue
+          action: reportIssue
+        - separator: true
+        - id: menu-help-docs
+          label: GMAT Documentation
+          action: openDocs
+        - id: menu-help-console
+          label: Simple Console
+          action: openSimpleConsole
+        - id: menu-help-earth
+          label: Earth Viewer
+          action: openEarthViewer
+        - separator: true
+        - id: menu-about
+          label: About GMAT Web GUI
+          action: showAbout
+
+# =============================================================================
+# Toolbar
+# =============================================================================
+toolbar:
+  items:
+    - id: btn-new-mission
+      label: New Mission
+      title: New Mission (Ctrl+N)
+      action: newMission
+    - id: btn-open
+      label: Open
+      title: Open Script (Ctrl+O)
+      action: openScript
+    - id: btn-save
+      label: Save
+      title: Save Script (Ctrl+S)
+      action: saveScript
+    - separator: true
+    - id: btn-run
+      label: "▶ Run"
+      title: Run Script (F5)
+      action: runMission
+      style: primary
+      disabled: true  # Enabled when WASM loads
+    - id: btn-stop
+      label: "■ Stop"
+      title: Stop (Shift+F5)
+      action: stopMission
+      disabled: true
+    - separator: true
+    - id: btn-generate
+      label: Generate Script
+      title: Generate Script (Ctrl+G)
+      action: generateScript
+    - separator: true
+    - id: btn-example
+      label: Load Sample
+      action: loadSample
+    - separator: true
+    - id: btn-close-all
+      label: Close All
+      title: Close All Tabs
+      action: closeAllTabs
+    - id: status-indicator
+      type: status
+      initialText: Loading WASM...
+      class: loading
+
+# =============================================================================
+# Resource Tree Structure
+# Reference: src/gui/app/ResourceTreeCtrl.js
+# =============================================================================
+resourceTree:
+  folders:
+    - id: spacecraft
+      label: Spacecraft
+      icon: "\U0001F680"  # 🚀
+      unicode: "U+1F680"
+      category: Spacecraft
+      contextMenu:
+        - label: Add Spacecraft
+          action: addSpacecraft
+
+    - id: formations
+      label: Formations
+      icon: "\U0001F6F8"  # 🛸
+      unicode: "U+1F6F8"
+      category: Formation
+      disabled: true
+      disabledReason: Requires FormationPlugin (not available in WASM)
+      contextMenu:
+        - label: Add Formation
+          disabled: true
+          title: Requires FormationPlugin (not available in WASM)
+
+    - id: groundStations
+      label: Ground Stations
+      icon: "\U0001F4E1"  # 📡
+      unicode: "U+1F4E1"
+      category: GroundStation
+      contextMenu:
+        - label: Add Ground Station
+          action: addGroundStation
+
+    - id: hardware
+      label: Hardware
+      icon: "\U0001F529"  # 🔩
+      unicode: "U+1F529"
+      category: Hardware
+      contextMenu:
+        - label: Add Fuel Tank (Chemical)
+          action: addChemicalTank
+        - label: Add Fuel Tank (Electric)
+          action: addElectricTank
+        - label: Add Thruster (Chemical)
+          action: addChemicalThruster
+        - label: Add Thruster (Electric)
+          action: addElectricThruster
+        - label: Add Solar Power System
+          action: addSolarPowerSystem
+        - label: Add Nuclear Power System
+          action: addNuclearPowerSystem
+
+    - id: burns
+      label: Burns
+      icon: "\U0001F525"  # 🔥
+      unicode: "U+1F525"
+      category: Burns
+      contextMenu:
+        - label: Add Impulsive Burn
+          action: addImpulsiveBurn
+        - label: Add Finite Burn
+          action: addFiniteBurn
+
+    - id: propagators
+      label: Propagators
+      icon: "\u2699"  # ⚙
+      unicode: "U+2699"
+      category: Propagator
+      contextMenu:
+        - label: Add Propagator
+          action: addPropagator
+
+    - id: solarSystem
+      label: Solar System
+      icon: "\u2609"  # ☉
+      unicode: "U+2609"
+      category: SolarSystem
+      expanded: false
+      contextMenu: []  # No context menu for Solar System
+      children:
+        - label: Sun
+          icon: "\u2600"  # ☀
+          type: celestialBody
+          bodyName: Sun
+        - label: Mercury
+          icon: "\u263F"  # ☿
+          type: celestialBody
+          bodyName: Mercury
+        - label: Venus
+          icon: "\u2640"  # ♀
+          type: celestialBody
+          bodyName: Venus
+        - label: Earth
+          icon: "\U0001F30D"  # 🌍
+          type: celestialBody
+          bodyName: Earth
+          children:
+            - label: Luna
+              icon: "\U0001F319"  # 🌙
+              type: celestialBody
+              bodyName: Luna
+        - label: Mars
+          icon: "\U0001F534"  # 🔴
+          type: celestialBody
+          bodyName: Mars
+          children:
+            - label: Phobos
+              icon: "\U0001F311"  # 🌑
+              type: celestialBody
+              bodyName: Phobos
+            - label: Deimos
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Deimos
+        - label: Jupiter
+          icon: "\U0001F7E0"  # 🟠
+          type: celestialBody
+          bodyName: Jupiter
+          children:
+            - label: Io
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Io
+            - label: Europa
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Europa
+            - label: Ganymede
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Ganymede
+            - label: Callisto
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Callisto
+        - label: Saturn
+          icon: "\U0001FA90"  # 🪐
+          type: celestialBody
+          bodyName: Saturn
+          children:
+            - label: Titan
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Titan
+            - label: Rhea
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Rhea
+            - label: Iapetus
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Iapetus
+            - label: Dione
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Dione
+            - label: Tethys
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Tethys
+            - label: Enceladus
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Enceladus
+            - label: Mimas
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Mimas
+        - label: Uranus
+          icon: "\U0001F535"  # 🔵
+          type: celestialBody
+          bodyName: Uranus
+          children:
+            - label: Titania
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Titania
+            - label: Oberon
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Oberon
+            - label: Ariel
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Ariel
+            - label: Umbriel
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Umbriel
+            - label: Miranda
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Miranda
+        - label: Neptune
+          icon: "\U0001F535"  # 🔵
+          type: celestialBody
+          bodyName: Neptune
+          children:
+            - label: Triton
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Triton
+        - label: Pluto
+          icon: "\u26AA"  # ⚪
+          type: celestialBody
+          bodyName: Pluto
+          children:
+            - label: Charon
+              icon: "\U0001F311"
+              type: celestialBody
+              bodyName: Charon
+        - label: Special Points
+          icon: "\u2726"  # ✦
+          category: SpecialPoints
+          contextMenu: []
+          children:
+            - label: SolarSystemBarycenter
+              icon: "\u2316"  # ⌖
+              type: celestialBody
+              bodyName: SolarSystemBarycenter
+            - label: EarthMoonBarycenter
+              icon: "\u2316"
+              type: celestialBody
+              bodyName: EarthMoonBarycenter
+
+    - id: solvers
+      label: Solvers
+      icon: "\U0001F527"  # 🔧
+      unicode: "U+1F527"
+      category: Solver
+      contextMenu:
+        - label: Add Differential Corrector
+          action: addDifferentialCorrector
+        - label: Add VF13ad Optimizer
+          action: addVF13ad
+
+    - id: output
+      label: Output
+      icon: "\U0001F4CA"  # 📊
+      unicode: "U+1F4CA"
+      category: Output
+      contextMenu:
+        - label: Add Report File
+          action: addReportFile
+        - label: Add Orbit View
+          action: addOrbitView
+        - label: Add XY Plot
+          action: addXYPlot
+        - label: Add Ephemeris File
+          action: addEphemerisFile
+
+    - id: interfaces
+      label: Interfaces
+      icon: "\U0001F50C"  # 🔌
+      unicode: "U+1F50C"
+      category: Interface
+      disabled: true
+      disabledReason: Requires DataInterfacePlugin (not available in WASM)
+      contextMenu:
+        - label: Add File Interface
+          disabled: true
+          title: Requires DataInterfacePlugin (not available in WASM)
+
+    - id: scripts
+      label: Scripts
+      icon: "\U0001F4DC"  # 📜
+      unicode: "U+1F4DC"
+      category: Script
+      contextMenu:
+        - label: New Script
+          action: addScript
+        - label: View Current Script
+          action: viewCurrentScript
+
+    - id: variables
+      label: Variables
+      icon: "\U0001D465"  # 𝑥
+      unicode: "U+1D465"
+      category: Variable
+      contextMenu:
+        - label: Add Variable
+          action: addVariable
+        - label: Add Array
+          action: addArray
+        - label: Add String
+          action: addString
+
+    - id: coordSystems
+      label: Coordinate Systems
+      icon: "\u2316"  # ⌖
+      unicode: "U+2316"
+      category: CoordSystem
+      contextMenu:
+        - label: Add Coordinate System
+          action: addCoordinateSystem
+      defaultItems:
+        - name: EarthMJ2000Eq
+          type: predefinedCoordSys
+          origin: Earth
+          axes: MJ2000Eq
+        - name: EarthMJ2000Ec
+          type: predefinedCoordSys
+          origin: Earth
+          axes: MJ2000Ec
+        - name: EarthFixed
+          type: predefinedCoordSys
+          origin: Earth
+          axes: BodyFixed
+        - name: EarthICRF
+          type: predefinedCoordSys
+          origin: Earth
+          axes: ICRF
+
+    - id: eventLocators
+      label: Event Locators
+      icon: "\U0001F50E"  # 🔎
+      unicode: "U+1F50E"
+      category: EventLocator
+      contextMenu:
+        - label: Add Eclipse Locator
+          action: addEclipseLocator
+        - label: Add Contact Locator
+          action: addContactLocator
+
+    - id: functions
+      label: Functions
+      icon: "\U0001D453"  # 𝑓
+      unicode: "U+1D453"
+      category: Function
+      disabled: true
+      disabledReason: Requires GmatFunctionPlugin (not available in WASM)
+      contextMenu:
+        - label: Add GMAT Function
+          disabled: true
+          title: Requires GmatFunctionPlugin (not available in WASM)
+
+# =============================================================================
+# Object Type to Folder Mapping
+# =============================================================================
+objectTypeMapping:
+  Spacecraft: spacecraft
+  Formation: formations
+  GroundStation: groundStations
+  ChemicalTank: hardware
+  ElectricTank: hardware
+  ChemicalThruster: hardware
+  ElectricThruster: hardware
+  SolarPowerSystem: hardware
+  NuclearPowerSystem: hardware
+  ForceModel: propagators
+  Propagator: propagators
+  ImpulsiveBurn: burns
+  FiniteBurn: burns
+  DifferentialCorrector: solvers
+  VF13ad: solvers
+  ReportFile: output
+  OrbitView: output
+  XYPlot: output
+  EphemerisFile: output
+  Variable: variables
+  Array: variables
+  String: variables
+  CoordinateSystem: coordSystems
+  FileInterface: interfaces
+  EclipseLocator: eventLocators
+  ContactLocator: eventLocators
+  GmatFunction: functions
+
+# =============================================================================
+# Object Icons
+# =============================================================================
+objectIcons:
+  Spacecraft: "\U0001F6F0"  # 🛰
+  Formation: "\U0001F6F8"   # 🛸
+  GroundStation: "\U0001F4E1"  # 📡
+  ChemicalTank: "\U0001F6E2"   # 🛢
+  ElectricTank: "\U0001F50B"   # 🔋
+  ChemicalThruster: "\U0001F4A5"  # 💥
+  ElectricThruster: "\u26A1"     # ⚡
+  SolarPowerSystem: "\u2600"     # ☀
+  NuclearPowerSystem: "\u2622"   # ☢
+  ForceModel: "\U0001F30D"       # 🌍
+  Propagator: "\u2699"           # ⚙
+  ImpulsiveBurn: "\u26A1"        # ⚡
+  FiniteBurn: "\U0001F525"       # 🔥
+  DifferentialCorrector: "\U0001F50D"  # 🔍
+  VF13ad: "\U0001F4C8"           # 📈
+  ReportFile: "\U0001F4C4"       # 📄
+  OrbitView: "\U0001F30F"        # 🌏
+  XYPlot: "\U0001F4C8"           # 📈
+  EphemerisFile: "\U0001F4BE"    # 💾
+  Variable: "\U0001D465"         # 𝑥
+  Array: "\U0001F4CB"            # 📋
+  String: "\U0001F520"           # 🔠
+  CoordinateSystem: "\u2316"     # ⌖
+  FileInterface: "\U0001F50C"    # 🔌
+  EclipseLocator: "\U0001F311"   # 🌑
+  ContactLocator: "\U0001F4E1"   # 📡
+  GmatFunction: "\U0001D453"     # 𝑓
+
+# =============================================================================
+# Name Prefixes for Auto-Generated Names
+# =============================================================================
+namePrefixes:
+  Spacecraft: Spacecraft
+  Formation: Formation
+  ForceModel: FM
+  Propagator: Prop
+  ImpulsiveBurn: ImpBurn
+  FiniteBurn: FinBurn
+  DifferentialCorrector: DC
+  VF13ad: VF13ad
+  ReportFile: DefaultReport
+  OrbitView: OrbitView
+  XYPlot: XYPlot
+  EphemerisFile: EphemFile
+  Variable: Var
+  Array: Arr
+  String: Str
+  GroundStation: GndStn
+  CoordinateSystem: CoordSys
+  ChemicalTank: ChemTank
+  ElectricTank: ElecTank
+  ChemicalThruster: ChemThruster
+  ElectricThruster: ElecThruster
+  SolarPowerSystem: SolarPower
+  NuclearPowerSystem: NuclearPower
+  FileInterface: FileInterface
+  EclipseLocator: EclLocator
+  ContactLocator: ContLocator
+  GmatFunction: GmatFunc
+
+# =============================================================================
+# Main Content Tabs
+# =============================================================================
+mainTabs:
+  builtIn:
+    - id: script
+      label: Script
+      icon: code
+      closable: false
+      content:
+        type: code-editor
+        language: gmat
+        highlightjs: matlab
+        features:
+          - syntaxHighlighting
+          - lineNumbers
+          - findReplace
+          - gotoLine
+          - comment
+          - indent
+
+    - id: orbit
+      label: 3D Orbit
+      icon: globe
+      closable: false
+      content:
+        type: orbit-viewer
+        renderer: threejs
+        version: "0.172.0"
+        features:
+          - celestialBodies
+          - orbitTrajectories
+          - groundTracks
+          - lighting
+          - earthShader
+          - atmosphereGlow
+          - starField
+
+    - id: output
+      label: Output
+      icon: file-text
+      closable: false
+      content:
+        type: report-viewer
+        features:
+          - tableView
+          - csvExport
+
+  dynamic:
+    description: Panels opened from resource tree
+    titlePattern: "{objectType}: {objectName}"
+    idPattern: "panel-{objectName}"
+
+# =============================================================================
+# Configuration Panels
+# Reference: src/gui/app/PanelFactory.js
+# =============================================================================
+panels:
+  Spacecraft:
+    controller: SpacecraftPanel
+    cppReference: src/base/spacecraft/Spacecraft.cpp
+    tabs:
+      - label: Orbit
+        fields:
+          - name: DateFormat
+            type: select
+            options: [UTCGregorian, TAIModJulian, TTModJulian, A1ModJulian, UTCModJulian, TDBModJulian]
+            default: UTCGregorian
+          - name: Epoch
+            type: datetime
+            default: "01 Jan 2024 12:00:00.000"
+          - name: CoordinateSystem
+            type: select
+            default: EarthMJ2000Eq
+          - name: DisplayStateType
+            type: select
+            options: [Cartesian, Keplerian, SphericalAZFPA, SphericalRADEC, Equinoctial, ModifiedEquinoctial, Delaunay, Planetodetic, OutgoingAsymptote, IncomingAsymptote, BrouwerMeanShort, BrouwerMeanLong]
+            default: Keplerian
+          - name: SMA
+            label: Semi-major Axis
+            type: number
+            unit: km
+            default: 7191.938817629013
+          - name: ECC
+            label: Eccentricity
+            type: number
+            default: 0.02454974900598091
+          - name: INC
+            label: Inclination
+            type: number
+            unit: deg
+            default: 12.85008005658097
+          - name: RAAN
+            label: Right Ascension of Ascending Node
+            type: number
+            unit: deg
+            default: 306.6148021947984
+          - name: AOP
+            label: Argument of Periapsis
+            type: number
+            unit: deg
+            default: 314.1905515359921
+          - name: TA
+            label: True Anomaly
+            type: number
+            unit: deg
+            default: 99.88774933204886
+      - label: Attitude
+        fields:
+          - name: AttitudeModel
+            type: select
+            options: [CoordinateSystemFixed, Spinner, SpiceAttitude, PrecessingSpinner, NadirPointing, ThreeAxisKinematic]
+            default: CoordinateSystemFixed
+          - name: AttitudeCoordinateSystem
+            type: select
+            default: EarthMJ2000Eq
+          - name: AttitudeStateType
+            type: select
+            options: [EulerAngles, Quaternion, DirectionCosineMatrix]
+            default: EulerAngles
+          - name: EulerSequence
+            type: select
+            options: ["123", "132", "213", "231", "312", "321"]
+            default: "321"
+          - name: EulerAngle1
+            type: number
+            unit: deg
+            default: 0
+          - name: EulerAngle2
+            type: number
+            unit: deg
+            default: 0
+          - name: EulerAngle3
+            type: number
+            unit: deg
+            default: 0
+      - label: Ballistic/Mass
+        fields:
+          - name: DryMass
+            type: number
+            unit: kg
+            default: 850
+          - name: Cd
+            label: Coefficient of Drag
+            type: number
+            default: 2.2
+          - name: Cr
+            label: Coefficient of Reflectivity
+            type: number
+            default: 1.8
+          - name: DragArea
+            type: number
+            unit: m²
+            default: 15
+          - name: SRPArea
+            label: SRP Area
+            type: number
+            unit: m²
+            default: 1
+      - label: Tanks
+        fields:
+          - name: Tanks
+            type: multi-select
+            objectType: [ChemicalTank, ElectricTank]
+      - label: Thrusters
+        fields:
+          - name: Thrusters
+            type: multi-select
+            objectType: [ChemicalThruster, ElectricThruster]
+      - label: Power System
+        fields:
+          - name: PowerSystem
+            type: select
+            objectType: [SolarPowerSystem, NuclearPowerSystem]
+      - label: Visualization
+        fields:
+          - name: ModelFile
+            type: text
+            default: aura.3ds
+          - name: ModelScale
+            type: number
+            default: 1.0
+          - name: OrbitColor
+            type: color
+            default: "#ff0000"
+          - name: TargetColor
+            type: color
+            default: "#008080"
+
+  Formation:
+    controller: FormationSetupPanel
+    fields:
+      - name: Add
+        label: Spacecraft Members
+        type: multi-select
+        objectType: Spacecraft
+
+  ForceModel:
+    controller: PropagatorPanel
+    cppReference: src/base/forcemodel/ODEModel.cpp
+    fields:
+      - name: CentralBody
+        type: select
+        default: Earth
+      - name: PrimaryBodies
+        type: multi-select
+        default: [Earth]
+      - name: PointMasses
+        type: multi-select
+        default: []
+      - name: SRP
+        label: Solar Radiation Pressure
+        type: select
+        options: ["On", "Off"]
+        default: "Off"
+      - name: RelativisticCorrection
+        type: select
+        options: ["On", "Off"]
+        default: "Off"
+      - name: "GravityField.Earth.Degree"
+        type: number
+        default: 4
+      - name: "GravityField.Earth.Order"
+        type: number
+        default: 4
+      - name: "GravityField.Earth.PotentialFile"
+        type: select
+        options: [JGM2.cof, JGM3.cof, EGM96.cof, GGM02C.cof, GGM03C.cof]
+        default: JGM2.cof
+
+  Propagator:
+    controller: PropagatorPanel
+    cppReference: src/base/propagator/Propagator.cpp
+    fields:
+      - name: FM
+        label: Force Model
+        type: select
+        objectType: ForceModel
+      - name: Type
+        type: select
+        options: [RungeKutta89, RungeKutta68, PrinceDormand45, PrinceDormand78, BulirschStoer, AdamsBashforthMoulton]
+        default: RungeKutta89
+      - name: InitialStepSize
+        type: number
+        unit: sec
+        default: 60
+      - name: Accuracy
+        type: number
+        default: 9.999999999999999e-12
+      - name: MinStep
+        type: number
+        unit: sec
+        default: 0.001
+      - name: MaxStep
+        type: number
+        unit: sec
+        default: 2700
+      - name: MaxStepAttempts
+        type: number
+        default: 50
+      - name: StopIfAccuracyIsViolated
+        type: boolean
+        default: true
+
+  ImpulsiveBurn:
+    controller: ImpulsiveBurnPanel
+    cppReference: src/base/burn/ImpulsiveBurn.cpp
+    fields:
+      - name: CoordinateSystem
+        type: select
+        options: [Local, EarthMJ2000Eq, EarthFixed]
+        default: Local
+      - name: Origin
+        type: select
+        default: Earth
+      - name: Axes
+        type: select
+        options: [VNB, LVLH, MJ2000Eq, SpacecraftBody]
+        default: VNB
+      - name: Element1
+        label: ΔV (V/Radial)
+        type: number
+        unit: km/s
+        default: 0
+      - name: Element2
+        label: ΔV (N/Transverse)
+        type: number
+        unit: km/s
+        default: 0
+      - name: Element3
+        label: ΔV (B/Normal)
+        type: number
+        unit: km/s
+        default: 0
+      - name: DecrementMass
+        type: boolean
+        default: false
+      - name: Isp
+        label: Specific Impulse
+        type: number
+        unit: s
+        default: 300
+      - name: GravitationalAccel
+        type: number
+        unit: m/s²
+        default: 9.81
+
+  FiniteBurn:
+    controller: FiniteBurnSetupPanel
+    cppReference: src/base/burn/FiniteBurn.cpp
+    fields:
+      - name: Thrusters
+        type: multi-select
+        objectType: [ChemicalThruster, ElectricThruster]
+      - name: ThrottleLogicAlgorithm
+        type: select
+        options: [MaxNumberOfThrusters]
+        default: MaxNumberOfThrusters
+
+  DifferentialCorrector:
+    controller: DCSetupPanel
+    cppReference: src/base/solver/DifferentialCorrector.cpp
+    fields:
+      - name: ShowProgress
+        type: boolean
+        default: true
+      - name: ReportStyle
+        type: select
+        options: [Normal, Concise, Verbose, Debug]
+        default: Normal
+      - name: MaximumIterations
+        type: number
+        default: 25
+      - name: DerivativeMethod
+        type: select
+        options: [ForwardDifference, BackwardDifference, CentralDifference]
+        default: ForwardDifference
+      - name: Algorithm
+        type: select
+        options: [NewtonRaphson, Broyden, ModifiedBroyden]
+        default: NewtonRaphson
+
+  VF13ad:
+    controller: SQPSetupPanel
+    fields:
+      - name: ShowProgress
+        type: boolean
+        default: true
+      - name: ReportStyle
+        type: select
+        options: [Normal, Concise, Verbose, Debug]
+        default: Normal
+      - name: MaximumIterations
+        type: number
+        default: 200
+      - name: Tolerance
+        type: number
+        default: 1e-5
+      - name: UseCentralDifferences
+        type: boolean
+        default: false
+
+  ReportFile:
+    controller: ReportFilePanel
+    cppReference: src/base/subscriber/ReportFile.cpp
+    fields:
+      - name: Filename
+        type: text
+        default: /tmp/report.txt
+      - name: Add
+        label: Parameters
+        type: parameter-selector
+      - name: WriteHeaders
+        type: boolean
+        default: true
+      - name: LeftJustify
+        type: select
+        options: ["On", "Off"]
+        default: "On"
+      - name: ZeroFill
+        type: select
+        options: ["On", "Off"]
+        default: "Off"
+      - name: FixedWidth
+        type: boolean
+        default: true
+      - name: Delimiter
+        type: text
+        default: " "
+      - name: ColumnWidth
+        type: number
+        default: 23
+      - name: WriteReport
+        type: boolean
+        default: true
+
+  EphemerisFile:
+    controller: EphemerisFilePanel
+    fields:
+      - name: Spacecraft
+        type: select
+        objectType: Spacecraft
+      - name: Filename
+        type: text
+        default: /tmp/ephemeris.bsp
+      - name: FileFormat
+        type: select
+        options: [SPK, CCSDS-OEM, STK-TimePosVel, Code500]
+        default: SPK
+      - name: CoordinateSystem
+        type: select
+        default: EarthMJ2000Eq
+      - name: WriteEphemeris
+        type: boolean
+        default: true
+      - name: Interpolator
+        type: select
+        options: [Hermite, Lagrange]
+        default: Hermite
+      - name: InterpolationOrder
+        type: number
+        default: 7
+      - name: StepSize
+        type: select
+        options: [IntegratorSteps]
+        default: IntegratorSteps
+      - name: OutputFormat
+        type: select
+        options: [LittleEndian, BigEndian]
+        default: LittleEndian
+      - name: DistanceUnit
+        type: select
+        options: [Kilometers, Meters]
+        default: Kilometers
+
+  OrbitView:
+    controller: OrbitViewPanel
+    cppReference: src/base/subscriber/OrbitView.cpp
+    fields:
+      - name: Add
+        label: Objects to Display
+        type: multi-select
+        objectType: Spacecraft
+      - name: CoordinateSystem
+        type: select
+        default: EarthMJ2000Eq
+      - name: DrawObject
+        type: multi-select
+      - name: ViewPointReference
+        type: select
+        default: Earth
+      - name: ViewPointVector
+        type: array
+        default: [0, 0, 120000]
+      - name: ViewDirection
+        type: select
+        default: Earth
+      - name: ViewScaleFactor
+        type: number
+        default: 1
+      - name: ShowPlot
+        type: boolean
+        default: true
+      - name: Axes
+        type: select
+        options: ["On", "Off"]
+        default: "On"
+      - name: Grid
+        type: select
+        options: ["On", "Off"]
+        default: "Off"
+      - name: SunLine
+        type: select
+        options: ["On", "Off"]
+        default: "Off"
+      - name: EnableStars
+        type: select
+        options: ["On", "Off"]
+        default: "On"
+      - name: StarCount
+        type: number
+        default: 7000
+
+  XYPlot:
+    controller: XyPlotSetupPanel
+    fields:
+      - name: XVariable
+        type: parameter-selector
+      - name: YVariables
+        type: multi-parameter-selector
+      - name: ShowGrid
+        type: boolean
+        default: true
+      - name: ShowPlot
+        type: boolean
+        default: true
+
+  Variable:
+    controller: ParameterSetupPanel
+    fields:
+      - name: Value
+        type: number
+        default: 0
+
+  Array:
+    controller: ParameterSetupPanel
+    fields:
+      - name: RowCount
+        type: number
+        default: 1
+      - name: ColCount
+        type: number
+        default: 1
+
+  String:
+    controller: ParameterSetupPanel
+    fields:
+      - name: Value
+        type: text
+        default: ""
+
+  GroundStation:
+    controller: GroundStationPanel
+    fields:
+      - name: CentralBody
+        type: select
+        default: Earth
+      - name: StateType
+        type: select
+        options: [Cartesian, Spherical, Ellipsoid]
+        default: Spherical
+      - name: HorizonReference
+        type: select
+        options: [Sphere, Ellipsoid]
+        default: Ellipsoid
+      - name: Location1
+        label: Latitude
+        type: number
+        unit: deg
+        default: 0
+      - name: Location2
+        label: Longitude
+        type: number
+        unit: deg
+        default: 0
+      - name: Location3
+        label: Altitude
+        type: number
+        unit: km
+        default: 0
+      - name: Id
+        type: text
+      - name: MinimumElevationAngle
+        type: number
+        unit: deg
+        default: 7.0
+
+  CoordinateSystem:
+    controller: CoordSystemConfigPanel
+    fields:
+      - name: Origin
+        type: select
+        default: Earth
+      - name: Axes
+        type: select
+        options: [MJ2000Eq, MJ2000Ec, ICRF, BodyFixed, BodyInertial, Equator, ObjectReferenced, TOEEq, TOEEc, MOEEq, MOEEc, TODEq, TODEc, MODEq, MODEc, GSE, GSM, Topocentric, LocalAlignedConstrained]
+        default: MJ2000Eq
+      - name: Primary
+        type: select
+        visibleWhen: "Axes in ['ObjectReferenced', 'LocalAlignedConstrained']"
+      - name: Secondary
+        type: select
+        visibleWhen: "Axes in ['ObjectReferenced', 'LocalAlignedConstrained']"
+
+  PredefinedCoordSys:
+    controller: PredefinedCoordSysPanel
+    readonly: true
+    fields:
+      - name: Origin
+        type: text
+        readonly: true
+      - name: Axes
+        type: text
+        readonly: true
+
+  CelestialBody:
+    controller: CelestialBodyPanel
+    readonly: true
+    fields:
+      - name: Mu
+        label: Gravitational Parameter
+        type: number
+        unit: km³/s²
+        readonly: true
+      - name: EquatorialRadius
+        type: number
+        unit: km
+        readonly: true
+      - name: Flattening
+        type: number
+        readonly: true
+      - name: RotationDataSource
+        type: text
+        readonly: true
+
+  ChemicalTank:
+    controller: TankConfigPanel
+    fields:
+      - name: FuelMass
+        type: number
+        unit: kg
+        default: 756
+      - name: Pressure
+        type: number
+        unit: kPa
+        default: 1500
+      - name: Temperature
+        type: number
+        unit: °C
+        default: 20
+      - name: RefTemperature
+        type: number
+        unit: °C
+        default: 20
+      - name: Volume
+        type: number
+        unit: m³
+        default: 0.75
+      - name: FuelDensity
+        type: number
+        unit: kg/m³
+        default: 1260
+      - name: PressureModel
+        type: select
+        options: [PressureRegulated, BlowDown]
+        default: PressureRegulated
+      - name: AllowNegativeFuelMass
+        type: boolean
+        default: false
+
+  ElectricTank:
+    controller: TankConfigPanel
+    fields:
+      - name: FuelMass
+        type: number
+        unit: kg
+        default: 756
+      - name: AllowNegativeFuelMass
+        type: boolean
+        default: false
+
+  ChemicalThruster:
+    controller: ThrusterConfigPanel
+    fields:
+      - name: CoordinateSystem
+        type: select
+        default: Local
+      - name: Origin
+        type: select
+        default: Earth
+      - name: Axes
+        type: select
+        options: [VNB, LVLH, MJ2000Eq, SpacecraftBody]
+        default: VNB
+      - name: ThrustDirection1
+        type: number
+        default: 1
+      - name: ThrustDirection2
+        type: number
+        default: 0
+      - name: ThrustDirection3
+        type: number
+        default: 0
+      - name: DutyCycle
+        type: number
+        default: 1.0
+      - name: ThrustScaleFactor
+        type: number
+        default: 1.0
+      - name: DecrementMass
+        type: boolean
+        default: false
+      - name: Tank
+        type: select
+        objectType: ChemicalTank
+      - name: GravitationalAccel
+        type: number
+        unit: m/s²
+        default: 9.81
+      - name: C1
+        label: Thrust Coefficient
+        type: number
+        unit: N
+        default: 10
+      - name: K1
+        label: Isp Coefficient
+        type: number
+        unit: s
+        default: 300
+
+  ElectricThruster:
+    controller: ThrusterConfigPanel
+    fields:
+      - name: CoordinateSystem
+        type: select
+        default: Local
+      - name: Origin
+        type: select
+        default: Earth
+      - name: Axes
+        type: select
+        options: [VNB, LVLH, MJ2000Eq, SpacecraftBody]
+        default: VNB
+      - name: ThrustDirection1
+        type: number
+        default: 1
+      - name: ThrustDirection2
+        type: number
+        default: 0
+      - name: ThrustDirection3
+        type: number
+        default: 0
+      - name: DutyCycle
+        type: number
+        default: 1.0
+      - name: ThrustScaleFactor
+        type: number
+        default: 1.0
+      - name: DecrementMass
+        type: boolean
+        default: false
+      - name: Tank
+        type: select
+        objectType: ElectricTank
+      - name: ThrustModel
+        type: select
+        options: [ConstantThrustAndIsp, FixedEfficiency, ThrustMassPolynomial]
+        default: ConstantThrustAndIsp
+      - name: MaximumUsablePower
+        type: number
+        unit: kW
+        default: 7.266
+      - name: MinimumUsablePower
+        type: number
+        unit: kW
+        default: 0.638
+      - name: ConstantThrust
+        type: number
+        unit: N
+        default: 0.01
+      - name: Isp
+        label: Specific Impulse
+        type: number
+        unit: s
+        default: 3000
+      - name: GravitationalAccel
+        type: number
+        unit: m/s²
+        default: 9.81
+      - name: FixedEfficiency
+        type: number
+        default: 0.7
+
+  SolarPowerSystem:
+    controller: PowerSystemConfigPanel
+    fields:
+      - name: EpochFormat
+        type: select
+        options: [UTCGregorian, TAIModJulian]
+        default: UTCGregorian
+      - name: InitialEpoch
+        type: datetime
+        default: "01 Jan 2000 11:59:28.000"
+      - name: InitialMaxPower
+        type: number
+        unit: kW
+        default: 1.2
+      - name: AnnualDecayRate
+        type: number
+        unit: "%"
+        default: 5
+      - name: Margin
+        type: number
+        unit: "%"
+        default: 5
+      - name: BusCoeff1
+        type: number
+        default: 0.3
+      - name: BusCoeff2
+        type: number
+        default: 0
+      - name: BusCoeff3
+        type: number
+        default: 0
+      - name: ShadowModel
+        type: select
+        options: [DualCone, Cylindrical]
+        default: DualCone
+      - name: ShadowBodies
+        type: multi-select
+        default: [Earth]
+
+  NuclearPowerSystem:
+    controller: PowerSystemConfigPanel
+    fields:
+      - name: EpochFormat
+        type: select
+        options: [UTCGregorian, TAIModJulian]
+        default: UTCGregorian
+      - name: InitialEpoch
+        type: datetime
+        default: "01 Jan 2000 11:59:28.000"
+      - name: InitialMaxPower
+        type: number
+        unit: kW
+        default: 1.2
+      - name: AnnualDecayRate
+        type: number
+        unit: "%"
+        default: 5
+      - name: Margin
+        type: number
+        unit: "%"
+        default: 5
+      - name: BusCoeff1
+        type: number
+        default: 0.3
+      - name: BusCoeff2
+        type: number
+        default: 0
+      - name: BusCoeff3
+        type: number
+        default: 0
+
+  EclipseLocator:
+    controller: EclipseLocatorPanel
+    fields:
+      - name: Spacecraft
+        type: select
+        objectType: Spacecraft
+      - name: OccultingBodies
+        type: multi-select
+        default: [Luna]
+      - name: InputEpochFormat
+        type: select
+        options: [UTCGregorian, TAIModJulian]
+        default: UTCGregorian
+      - name: InitialEpoch
+        type: datetime
+        default: "01 Jan 2024 00:00:00.000"
+      - name: FinalEpoch
+        type: datetime
+        default: "01 Jan 2024 12:00:00.000"
+      - name: StepSize
+        type: number
+        unit: sec
+        default: 10
+      - name: EclipseTypes
+        type: multi-select
+        options: [Umbra, Penumbra, Antumbra]
+        default: [Umbra, Penumbra, Antumbra]
+
+  ContactLocator:
+    controller: ContactLocatorPanel
+    fields:
+      - name: Target
+        type: select
+        objectType: [Spacecraft, GroundStation]
+      - name: Observer
+        type: select
+        objectType: [Spacecraft, GroundStation]
+      - name: LightTimeDirection
+        type: select
+        options: [Transmit, Receive]
+        default: Transmit
+      - name: InputEpochFormat
+        type: select
+        options: [UTCGregorian, TAIModJulian]
+        default: UTCGregorian
+      - name: InitialEpoch
+        type: datetime
+        default: "01 Jan 2024 00:00:00.000"
+      - name: FinalEpoch
+        type: datetime
+        default: "01 Jan 2024 12:00:00.000"
+      - name: StepSize
+        type: number
+        unit: sec
+        default: 10
+
+  FileInterface:
+    controller: FileInterfacePanel
+    fields:
+      - name: Filename
+        type: text
+      - name: Format
+        type: select
+        options: [TextFile]
+        default: TextFile
+
+  GmatFunction:
+    controller: FunctionSetupPanel
+    fields:
+      - name: FunctionPath
+        type: text
+
+# =============================================================================
+# Mission Sequence Commands
+# Reference: src/gui/app/MissionPanelCtrl.js
+# =============================================================================
+missionCommands:
+  categories:
+    - label: Propagation
+      commands:
+        - type: Propagate
+          fields: [propagator, spacecraft, stopCondition]
+          detail: "{propagator}({spacecraft}) {{{stopCondition.param} = {stopCondition.value}}}"
+
+    - label: Maneuver
+      commands:
+        - type: Maneuver
+          fields: [burn, spacecraft]
+          detail: "{burn}({spacecraft})"
+        - type: BeginFiniteBurn
+          fields: [burn, spacecraft]
+          detail: "{burn}({spacecraft})"
+        - type: EndFiniteBurn
+          fields: [burn, spacecraft]
+          detail: "{burn}({spacecraft})"
+
+    - label: Targeting
+      commands:
+        - type: Target
+          fields: [solver]
+          detail: "{solver}"
+        - type: Vary
+          fields: [solver, variable, initialValue, perturbation, lower, upper, maxStep]
+          detail: "{solver}({variable})"
+        - type: Achieve
+          fields: [solver, goal, value, tolerance]
+          detail: "{solver}({goal} = {value})"
+        - type: EndTarget
+          fields: []
+          detail: ""
+
+    - label: Optimization
+      commands:
+        - type: Optimize
+          fields: [solver]
+          detail: "{solver}"
+        - type: Minimize
+          fields: [solver, objective]
+          detail: "{solver}({objective})"
+        - type: NonlinearConstraint
+          fields: [solver, constraint, comparator, value]
+          detail: "{solver}({constraint} {comparator} {value})"
+        - type: EndOptimize
+          fields: []
+          detail: ""
+
+    - label: Control Flow
+      commands:
+        - type: If
+          fields: [condition]
+          detail: "{condition}"
+        - type: Else
+          fields: []
+          detail: ""
+        - type: EndIf
+          fields: []
+          detail: ""
+        - type: For
+          fields: [variable, start, step, end]
+          detail: "{variable} = {start}:{step}:{end}"
+        - type: EndFor
+          fields: []
+          detail: ""
+        - type: While
+          fields: [condition]
+          detail: "{condition}"
+        - type: EndWhile
+          fields: []
+          detail: ""
+
+    - label: Output
+      commands:
+        - type: Report
+          fields: [reportFile, parameters]
+          detail: "{reportFile} {parameters}"
+        - type: Toggle
+          fields: [subscriber, state]
+          detail: "{subscriber} {state}"
+        - type: PenUp
+          fields: [subscriber]
+          detail: "{subscriber}"
+        - type: PenDown
+          fields: [subscriber]
+          detail: "{subscriber}"
+        - type: MarkPoint
+          fields: [subscriber]
+          detail: "{subscriber}"
+        - type: ClearPlot
+          fields: [subscriber]
+          detail: "{subscriber}"
+
+    - label: Other
+      commands:
+        - type: Assignment
+          label: Assignment (GMAT)
+          fields: [lhs, rhs]
+          detail: "{lhs} = {rhs}"
+        - type: Stop
+          fields: []
+          detail: ""
+
+# =============================================================================
+# Console Panel
+# =============================================================================
+consolePanel:
+  header:
+    title: Console Output
+    lineCount: true
+    clearButton: true
+  features:
+    - timestamps
+    - lineCount
+    - search
+    - clear
+    - scrollToBottom
+  messageTypes:
+    info:
+      prefix: "[INFO]"
+      color: "var(--primary)"
+    error:
+      prefix: "[ERROR]"
+      color: "var(--danger)"
+    success:
+      prefix: "[SUCCESS]"
+      color: "var(--success)"
+    warning:
+      prefix: "[WARN]"
+      color: "var(--warning)"
+
+# =============================================================================
+# URL Routing
+# =============================================================================
+routing:
+  base: /ui
+  routes:
+    - path: /
+      redirect: /Scripts/default
+    - path: /Scripts
+      component: scriptList
+    - path: /Scripts/:name
+      component: scriptEditor
+    - path: /Spacecraft/:name
+      component: spacecraftPanel
+    - path: /Propagators/:name
+      component: propagatorPanel
+    - path: /Burns/:name
+      component: burnPanel
+    - path: /Solvers/:name
+      component: solverPanel
+    - path: /Output/:name
+      component: outputPanel
+    - path: /Hardware/:name
+      component: hardwarePanel
+    - path: /Variables/:name
+      component: variablePanel
+    - path: /CoordSystems/:name
+      component: coordSystemPanel
+    - path: /Orbit
+      component: orbitViewer
+    - path: /Report
+      component: reportViewer
+
+# =============================================================================
+# Keyboard Shortcuts
+# =============================================================================
+shortcuts:
+  - key: F5
+    action: runMission
+    description: Run mission
+  - key: Shift+F5
+    action: stopMission
+    description: Stop mission
+  - key: Ctrl+S
+    action: saveScript
+    description: Save script
+  - key: F12
+    action: saveScriptAs
+    description: Save script as
+  - key: Ctrl+O
+    action: openScript
+    description: Open script
+  - key: Ctrl+N
+    action: newMission
+    description: New mission
+  - key: Ctrl+Shift+N
+    action: newScript
+    description: New script
+  - key: Ctrl+G
+    action: generateScript
+    description: Generate script
+  - key: Ctrl+W
+    action: closeCurrentTab
+    description: Close current tab
+  - key: Ctrl+F
+    action: find
+    description: Find & Replace
+  - key: F3
+    action: findNext
+    description: Find next
+  - key: Ctrl+/
+    action: comment
+    description: Toggle comment
+  - key: Ctrl+L
+    action: gotoLine
+    description: Go to line
+  - key: Ctrl+]
+    action: indentMore
+    description: Indent more
+  - key: Ctrl+[
+    action: indentLess
+    description: Indent less
+  - key: F1
+    action: openUserGuide
+    description: User guide
+  - key: Ctrl+F1
+    action: showWelcome
+    description: Welcome page
+  - key: Escape
+    action: closeDialog
+    description: Close dialog
+
+# =============================================================================
+# Theme Configuration
+# =============================================================================
+theme:
+  name: Catppuccin Mocha
+  colors:
+    # Primary colors
+    primary: "#89b4fa"      # Blue
+    success: "#a6e3a1"      # Green
+    warning: "#f9e2af"      # Yellow
+    danger: "#f38ba8"       # Red/Pink
+
+    # Background colors
+    background: "#1e1e2e"   # Base
+    surface: "#313244"      # Surface0
+    surfaceHover: "#45475a" # Surface1
+    mantle: "#181825"       # Mantle
+    crust: "#11111b"        # Crust
+
+    # Text colors
+    text: "#cdd6f4"         # Text
+    textMuted: "#a6adc8"    # Subtext0
+    overlay0: "#6c7086"     # Overlay0
+    overlay1: "#7f849c"     # Overlay1
+
+    # Border
+    border: "#45475a"       # Surface1
+
+    # Accent colors
+    lavender: "#b4befe"
+    sapphire: "#74c7ec"
+    sky: "#89dceb"
+    teal: "#94e2d5"
+    peach: "#fab387"
+    maroon: "#eba0ac"
+    mauve: "#cba6f7"
+    flamingo: "#f2cdcd"
+    rosewater: "#f5e0dc"
+
+  fonts:
+    ui: "Segoe UI, system-ui, -apple-system, sans-serif"
+    code: "JetBrains Mono, Consolas, Monaco, monospace"
+
+  sizes:
+    borderRadius: 6px
+    menuBarHeight: 28px
+    toolbarHeight: 40px
+    tabHeight: 32px
+
+# =============================================================================
+# Dialogs
+# =============================================================================
+dialogs:
+  about:
+    title: About GMAT Web GUI
+    content:
+      - type: heading
+        text: GMAT Web GUI
+      - type: paragraph
+        text: General Mission Analysis Tool - WebAssembly Edition
+      - type: paragraph
+        text: This is a web-based interface for GMAT compiled to WebAssembly.
+      - type: link
+        text: GMAT Documentation
+        url: https://gmat.atlassian.net/wiki/spaces/GW
+
+  welcome:
+    title: Welcome to GMAT Web GUI
+    sections:
+      - title: Getting Started
+        items:
+          - Click "Load Sample" to load an example mission
+          - Press F5 or click "Run" to execute the mission
+          - View results in the 3D Orbit tab and Output tab
+
+  confirmUnsaved:
+    title: Unsaved Changes
+    message: You have unsaved changes. Do you want to save before continuing?
+    buttons:
+      - label: Save
+        action: save
+      - label: Don't Save
+        action: discard
+      - label: Cancel
+        action: cancel
+
+# =============================================================================
+# CSS Styles
+# Uses ID-based selectors to match the generated HTML structure
+# =============================================================================
+styles:
+  # CSS Custom Properties (Theme Variables)
+  variables: |
+    :root {
+      --bg: #1e1e2e;
+      --base: #1e1e2e;
+      --mantle: #181825;
+      --crust: #11111b;
+      --surface0: #313244;
+      --surface1: #45475a;
+      --surface2: #585b70;
+      --overlay0: #6c7086;
+      --overlay1: #7f849c;
+      --text: #cdd6f4;
+      --subtext1: #bac2de;
+      --subtext0: #a6adc8;
+      --accent: #89b4fa;
+      --green: #a6e3a1;
+      --red: #f38ba8;
+      --yellow: #f9e2af;
+      --peach: #fab387;
+      --mauve: #cba6f7;
+      --teal: #94e2d5;
+      --sky: #89dceb;
+      --border: #313244;
+      --left-width: 260px;
+      --console-height: 180px;
+    }
+
+  # Global Reset & Base
+  global: |
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+  # Header: Menu Bar + Toolbar
+  header: |
+    #app-header {
+      background: var(--mantle);
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+    #menu-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      height: 28px;
+      gap: 2px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .menu-item {
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--subtext0);
+      position: relative;
+    }
+    .menu-item:hover { background: var(--surface0); color: var(--text); }
+    @keyframes help-pulse {
+      0%, 100% { color: var(--accent); text-shadow: 0 0 4px var(--accent); }
+      50% { color: var(--text); text-shadow: none; }
+    }
+    .menu-item.help-attention {
+      animation: help-pulse 1.2s ease-in-out infinite;
+      cursor: pointer;
+    }
+    .menu-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: var(--mantle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 0;
+      min-width: 200px;
+      z-index: 2000;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .menu-item:hover > .menu-dropdown { display: block; }
+    .menu-dropdown-item {
+      padding: 5px 14px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text);
+    }
+    .menu-dropdown-item:hover { background: var(--surface0); }
+    .menu-dropdown-item .shortcut { color: var(--overlay0); font-size: 11px; }
+    .menu-dropdown hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+  # Toolbar
+  toolbar: |
+    #toolbar {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+      gap: 4px;
+      height: 34px;
+    }
+    .tb-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--subtext0);
+      padding: 3px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tb-btn:hover { background: var(--surface0); color: var(--text); border-color: var(--border); }
+    .tb-btn.primary { background: var(--accent); color: var(--crust); font-weight: 600; }
+    .tb-btn.primary:hover { opacity: 0.85; }
+    .tb-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    #btn-run { background: var(--green); color: var(--crust); font-weight: 600; }
+    #btn-run:hover:not(:disabled) { opacity: 0.85; }
+    #btn-run:disabled { background: var(--surface1); color: var(--overlay0); opacity: 0.6; }
+    .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+    #version-info {
+      margin-left: auto;
+      font-size: 10px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      color: var(--overlay0);
+      padding: 2px 6px;
+      user-select: text;
+      cursor: text;
+    }
+    #version-info a { color: var(--sky); text-decoration: none; font-weight: 500; }
+    #version-info a:hover { text-decoration: underline; }
+    #status-indicator {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    #status-indicator.ready { color: var(--green); }
+    #status-indicator.running { color: var(--yellow); }
+    #status-indicator.error { color: var(--red); }
+    #status-indicator.loading { color: var(--subtext0); }
+
+  # App Body: Left Panel + Main Content
+  appBody: |
+    #app-body {
+      display: grid;
+      grid-template-columns: var(--left-width) 4px 1fr;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #left-panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--mantle);
+      min-height: 0;
+      overflow: hidden;
+    }
+    #left-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .left-tab {
+      flex: 1;
+      padding: 6px 4px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--overlay0);
+      border-bottom: 2px solid transparent;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+    .left-tab:hover { color: var(--subtext0); }
+    .left-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .left-panel-content {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .left-panel-content.active { display: block; }
+    .resize-h {
+      background: var(--border);
+      cursor: col-resize;
+      transition: background 0.15s;
+    }
+    .resize-h:hover, .resize-h.active { background: var(--accent); }
+    #resize-v {
+      height: 4px;
+      background: var(--border);
+      cursor: row-resize;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    #resize-v:hover, #resize-v.active { background: var(--accent); }
+    #main-content {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #tab-bar {
+      display: flex;
+      background: var(--mantle);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    #tab-bar::-webkit-scrollbar { height: 0; }
+    .tab-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--overlay1);
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .tab-btn:hover { color: var(--text); background: var(--surface0); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--bg); }
+    .tab-close {
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0.5;
+      border-radius: 3px;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tab-close:hover { opacity: 1; background: var(--surface1); }
+    .tab-icon { font-size: 10px; line-height: 1; flex-shrink: 0; }
+    #tab-content {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .tab-panel {
+      display: none;
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+    }
+    .tab-panel.active { display: flex; flex-direction: column; }
+    .tab-panel.active:has(.orbit-view-wrap) { overflow: hidden; }
+
+  # Report Viewer
+  reportViewer: |
+    .report-viewer { padding: 0; display: flex; flex-direction: column; height: 100%; }
+    .report-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; background: var(--mantle);
+      border-bottom: 1px solid var(--surface0); flex-shrink: 0;
+    }
+    .report-toolbar select {
+      background: var(--surface0); color: var(--text); border: 1px solid var(--surface1);
+      border-radius: 4px; padding: 3px 8px; font-size: 12px; font-family: inherit;
+    }
+    .report-toolbar label { font-size: 11px; color: var(--subtext0); }
+    .report-toolbar button {
+      padding: 3px 10px; font-size: 11px; background: var(--surface0);
+      color: var(--text); border: 1px solid var(--surface1); border-radius: 4px; cursor: pointer;
+    }
+    .report-toolbar button:hover { background: var(--surface1); }
+    .report-table-wrap { flex: 1; overflow: auto; }
+    .report-table {
+      width: 100%; border-collapse: collapse;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px;
+    }
+    .report-table th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--mantle); color: var(--accent);
+      text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--surface1);
+      font-weight: 600; white-space: nowrap;
+    }
+    .report-table td {
+      text-align: right; padding: 3px 10px; border-bottom: 1px solid var(--surface0);
+      color: var(--text); white-space: nowrap;
+    }
+    .report-table tr:hover td { background: var(--surface0); }
+    .report-raw {
+      flex: 1; overflow: auto; padding: 8px 12px; white-space: pre;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px;
+      color: var(--subtext1); background: var(--base);
+    }
+    .report-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: var(--overlay0); font-size: 13px;
+    }
+
+  # Console Panel
+  consolePanel: |
+    #console-panel {
+      display: flex;
+      flex-direction: column;
+      height: var(--console-height);
+      min-height: 28px;
+      background: var(--mantle);
+      border-top: 1px solid var(--border);
+    }
+    #console-header {
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--subtext0);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    #console-header .spacer { flex: 1; }
+    #console-line-count { color: var(--overlay0); font-weight: 400; }
+    #console-clear-btn {
+      background: none; border: none; color: var(--overlay0);
+      cursor: pointer; font-size: 11px; padding: 1px 6px; border-radius: 3px;
+    }
+    #console-clear-btn:hover { background: var(--surface0); color: var(--text); }
+    #console-output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 10px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: var(--crust);
+    }
+    #console-output .err { color: var(--red); }
+    #console-output .warn { color: var(--yellow); }
+    #console-output .info { color: var(--accent); }
+
+  # Tree View
+  treeView: |
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 6px 2px 0;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--text);
+      line-height: 22px;
+      margin: 0 4px;
+    }
+    .tree-item:hover { background: var(--surface0); }
+    .tree-item.selected { background: var(--surface1); color: var(--accent); }
+    .tree-item.disabled { color: var(--overlay0); font-style: italic; position: relative; }
+    .tree-item.disabled:hover { background: none; cursor: not-allowed; }
+    .tree-item.disabled[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      left: 100%;
+      top: 0;
+      margin-left: 6px;
+      padding: 2px 5px;
+      background: var(--surface1);
+      border: 1px solid var(--yellow);
+      border-radius: 3px;
+      font-size: 9px;
+      font-style: normal;
+      color: var(--yellow);
+      white-space: nowrap;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    .tree-toggle {
+      width: 22px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--peach);
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .tree-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+      width: 18px;
+      text-align: center;
+    }
+    .tree-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tree-toolbar {
+      display: flex;
+      gap: 4px;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--surface0);
+      background: var(--mantle);
+    }
+    .tree-toolbar button {
+      background: var(--surface0);
+      border: none;
+      color: var(--subtext0);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .tree-toolbar button:hover { background: var(--surface1); color: var(--text); }
+
+  # Context Menu
+  contextMenu: |
+    .ctx-menu {
+      position: fixed;
+      z-index: 3000;
+      background: var(--mantle);
+      border: 1px solid var(--surface0);
+      border-radius: 6px;
+      padding: 4px 0;
+      min-width: 180px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      font-size: 12px;
+    }
+    .ctx-menu-item {
+      padding: 5px 14px;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .ctx-menu-item:hover { background: var(--surface0); }
+    .ctx-menu-item.disabled { color: var(--overlay0); cursor: not-allowed; position: relative; }
+    .ctx-menu-item.disabled:hover { background: none; }
+    .ctx-menu-item.disabled[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      left: 100%;
+      top: 50%;
+      transform: translateY(-50%);
+      margin-left: 6px;
+      padding: 2px 5px;
+      background: var(--surface1);
+      border: 1px solid var(--yellow);
+      border-radius: 3px;
+      font-size: 9px;
+      color: var(--yellow);
+      white-space: nowrap;
+      z-index: 3001;
+      pointer-events: none;
+    }
+    .ctx-menu hr { border: none; border-top: 1px solid var(--border); margin: 3px 0; }
+
+  # Config Panels
+  configPanel: |
+    .config-panel { padding: 16px; overflow-y: auto; flex: 1; }
+    .panel-action-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; background: var(--mantle);
+      border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    .panel-action-bar button {
+      padding: 5px 14px; font-size: 12px; font-family: inherit;
+      border: 1px solid var(--surface1); border-radius: 4px;
+      background: var(--surface0); color: var(--text); cursor: pointer;
+    }
+    .panel-action-bar button:hover { background: var(--surface1); }
+    .panel-action-bar .spacer { flex: 1; }
+    .panel-section { margin-bottom: 16px; }
+    .panel-section h3 {
+      font-size: 12px; font-weight: 600; color: var(--accent);
+      margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border);
+    }
+    .form-grid {
+      display: grid; grid-template-columns: 150px 1fr;
+      gap: 5px 10px; align-items: center;
+    }
+    .form-grid label {
+      font-size: 12px; color: var(--subtext0);
+      text-align: right; padding-right: 4px;
+    }
+    .form-grid input, .form-grid select {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 4px 8px; font-size: 12px; outline: none; font-family: inherit;
+    }
+    .form-grid input:focus, .form-grid select:focus { border-color: var(--accent); }
+    .form-grid input[type=number] { font-family: 'SF Mono', 'Fira Code', Consolas, monospace; }
+    .form-grid input:disabled, .form-grid select:disabled {
+      opacity: 0.6; background: var(--mantle); cursor: not-allowed;
+    }
+
+  # Script Editor
+  scriptEditor: |
+    .script-editor-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .script-toolbar {
+      display: flex; align-items: center; padding: 4px 8px; gap: 6px;
+      background: var(--mantle); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .script-toolbar button {
+      background: var(--surface0); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 3px 10px; cursor: pointer; font-size: 11px;
+    }
+    .script-toolbar button:hover { background: var(--surface1); }
+    .script-toolbar .spacer { flex: 1; }
+    .script-editor-container { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+    .script-highlight {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      margin: 0; padding: 8px 12px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-size: 12.5px; line-height: 1.5; tab-size: 3;
+      white-space: pre-wrap; word-wrap: break-word; overflow: auto;
+      color: var(--text); background: var(--bg); pointer-events: none;
+    }
+    .script-highlight code { font-family: inherit; font-size: inherit; background: none; }
+    .script-textarea {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: transparent; color: transparent; caret-color: var(--text);
+      border: none; padding: 8px 12px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-size: 12.5px; line-height: 1.5; resize: none; outline: none;
+      tab-size: 3; white-space: pre-wrap; word-wrap: break-word; overflow: auto;
+    }
+    .script-textarea::selection { background: rgba(137,180,250,0.3); }
+    .hljs { background: transparent; color: var(--text); }
+    .hljs-comment, .hljs-quote { color: var(--overlay1); font-style: italic; }
+    .hljs-keyword, .hljs-selector-tag { color: var(--mauve); }
+    .hljs-built_in { color: var(--teal); }
+    .hljs-type, .hljs-class .hljs-title { color: var(--accent); }
+    .hljs-string { color: var(--green); }
+    .hljs-number, .hljs-literal { color: var(--peach); }
+    .hljs-title, .hljs-function .hljs-title { color: var(--accent); }
+    .hljs-variable { color: var(--red); }
+    .hljs-params { color: var(--text); }
+    .hljs-symbol { color: var(--yellow); }
+    .hljs-meta { color: var(--sky); }
+
+  # Orbit Viewer
+  orbitViewer: |
+    .orbit-viewer-wrap {
+      position: relative; flex: 1; background: #000;
+      min-height: 0; height: 100%; width: 100%;
+    }
+    .orbit-viewer-wrap canvas { display: block; }
+    .orbit-viewer-overlay {
+      position: absolute; top: 8px; left: 12px;
+      color: var(--text); font-size: 12px; pointer-events: none;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9); line-height: 1.6;
+    }
+    .orbit-legend {
+      position: absolute; top: 8px; right: 12px;
+      color: var(--text); font-size: 11px; pointer-events: none;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 4px; min-width: 80px;
+    }
+    .orbit-legend-title { font-weight: 600; margin-bottom: 4px; color: var(--subtext0); }
+    .orbit-legend-item { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    .orbit-legend-color { width: 12px; height: 3px; border-radius: 1px; flex-shrink: 0; }
+    .orbit-view-wrap {
+      display: flex; flex-direction: column; flex: 1;
+      min-height: 0; height: 100%; position: relative; overflow: hidden;
+    }
+    .orbit-toolbar {
+      display: flex; gap: 6px; padding: 4px 8px;
+      background: var(--mantle); border-bottom: 1px solid var(--border);
+    }
+    .orbit-toolbar button {
+      font-size: 11px; padding: 4px 8px;
+      background: var(--surface0); border: 1px solid var(--surface1);
+      color: var(--text); border-radius: 4px; cursor: pointer;
+    }
+    .orbit-toolbar button:hover { background: var(--surface1); }
+    .orbit-container {
+      flex: 1; min-height: 0; display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+    }
+
+  # Mission List
+  missionList: |
+    .mission-list { padding: 4px; }
+    .mission-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 8px; font-size: 12px; border-radius: 4px;
+      margin: 1px 4px; cursor: pointer; color: var(--text);
+    }
+    .mission-item:hover { background: var(--surface0); }
+    .mission-item.selected { background: var(--surface1); color: var(--accent); }
+    .mission-item .cmd-type { color: var(--mauve); font-weight: 600; font-size: 11px; min-width: 70px; }
+    .mission-item .cmd-detail { color: var(--subtext0); font-size: 11px; }
+    .mission-add-btn {
+      display: block; margin: 8px auto;
+      background: var(--surface0); color: var(--subtext0);
+      border: 1px dashed var(--border); border-radius: 4px;
+      padding: 4px 12px; cursor: pointer; font-size: 11px;
+    }
+    .mission-add-btn:hover { background: var(--surface1); color: var(--text); }
+
+  # Dialog Overlay
+  dialogs: |
+    .dialog-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6); z-index: 5000;
+      align-items: center; justify-content: center;
+    }
+    .dialog-overlay.visible { display: flex; }
+    .dialog {
+      background: var(--base); border: 1px solid var(--border);
+      border-radius: 10px; padding: 24px;
+      min-width: 400px; max-width: 600px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    }
+    .dialog h2 { color: var(--accent); font-size: 18px; margin-bottom: 12px; }
+    .dialog p { color: var(--subtext1); font-size: 13px; margin-bottom: 8px; line-height: 1.6; }
+    .dialog .dialog-section { margin-bottom: 12px; }
+    .dialog .dialog-section h3 { font-size: 12px; color: var(--subtext0); margin-bottom: 4px; }
+    .dialog .dialog-links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .dialog .dialog-links a {
+      display: inline-block; padding: 6px 14px;
+      background: var(--surface0); color: var(--accent);
+      border-radius: 6px; text-decoration: none;
+      font-size: 12px; border: 1px solid var(--border);
+    }
+    .dialog .dialog-links a:hover { background: var(--surface1); }
+    .dialog .dialog-footer { margin-top: 16px; text-align: right; }
+    .dialog .dialog-footer button {
+      background: var(--accent); color: var(--crust);
+      border: none; border-radius: 6px; padding: 6px 20px;
+      cursor: pointer; font-weight: 600; font-size: 13px;
+    }
+    .dialog .dialog-footer button:hover { opacity: 0.85; }
+    .dialog .version-info { color: var(--overlay0); font-size: 11px; margin-top: 10px; }
+    .dialog .example-list {
+      max-height: 280px; overflow-y: auto; margin: 8px 0;
+      border: 1px solid var(--surface1); border-radius: 4px; background: var(--base);
+    }
+    .dialog .example-item {
+      display: flex; align-items: center; padding: 6px 10px;
+      cursor: pointer; border-bottom: 1px solid var(--surface0);
+      font-size: 13px; color: var(--text);
+    }
+    .dialog .example-item:last-child { border-bottom: none; }
+    .dialog .example-item:hover { background: var(--accent); color: var(--crust); }
+    .dialog .example-item .example-icon { margin-right: 8px; opacity: 0.7; }
+    .dialog .example-item:hover .example-icon { opacity: 1; }
+
+  # Find / Replace Bar
+  findBar: |
+    .find-bar {
+      display: none; padding: 6px 10px;
+      background: var(--mantle); border-bottom: 1px solid var(--border);
+      gap: 6px; align-items: center; font-size: 12px; flex-shrink: 0;
+    }
+    .find-bar.visible { display: flex; }
+    .find-bar input {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 3px 8px; font-size: 12px; outline: none; width: 180px;
+    }
+    .find-bar input:focus { border-color: var(--accent); }
+    .find-bar button {
+      background: var(--surface0); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 3px 8px; cursor: pointer; font-size: 11px;
+    }
+    .find-bar button:hover { background: var(--surface1); }
+    .find-bar .find-count { color: var(--overlay0); font-size: 11px; min-width: 60px; }
+    .find-bar .find-close {
+      background: none; border: none; color: var(--overlay0);
+      cursor: pointer; font-size: 16px; padding: 0 4px;
+    }
+    .find-bar .find-close:hover { color: var(--text); }
+    .tree-rename-input {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--accent); border-radius: 3px;
+      padding: 1px 4px; font-size: 12px; outline: none; width: 120px;
+    }
+
+  # Form Widgets
+  widgets: |
+    .file-browse { display: flex; gap: 4px; align-items: center; }
+    .file-browse input[type=text] {
+      flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 8px; font-size: 12px; outline: none; font-family: inherit;
+    }
+    .file-browse input[type=text]:focus { border-color: var(--accent); }
+    .file-browse button {
+      padding: 4px 8px; font-size: 12px; background: var(--surface0); color: var(--text);
+      border: 1px solid var(--surface1); border-radius: 4px; cursor: pointer;
+      display: flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .file-browse button:hover { background: var(--surface1); }
+    .slider-row {
+      display: grid; grid-template-columns: 110px auto 1fr auto 60px; gap: 4px; align-items: center; margin-bottom: 6px;
+    }
+    .slider-row .slider-min, .slider-row .slider-max {
+      font-size: 10px; color: var(--overlay0); font-family: 'SF Mono','Fira Code',Consolas,monospace; white-space: nowrap;
+    }
+    .slider-row label { font-size: 12px; color: var(--subtext0); text-align: right; padding-right: 4px; }
+    .slider-row input[type=range] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+      background: var(--surface0); border-radius: 3px; outline: none;
+    }
+    .slider-row input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+      background: var(--accent); border-radius: 50%; cursor: pointer;
+    }
+    .slider-row input[type=range]::-moz-range-thumb {
+      width: 14px; height: 14px; background: var(--accent); border-radius: 50%; cursor: pointer; border: none;
+    }
+    .slider-row input[type=number] {
+      width: 60px; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 3px 6px; font-size: 11px; font-family: 'SF Mono','Fira Code',Consolas,monospace;
+      outline: none; text-align: right;
+    }
+    .slider-row input[type=number]:focus { border-color: var(--accent); }
+    .color-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .color-row label { font-size: 12px; color: var(--subtext0); min-width: 100px; text-align: right; }
+    .color-swatch {
+      width: 40px; height: 22px; border: 1px solid var(--border); border-radius: 4px;
+      cursor: pointer; padding: 0; background: none;
+    }
+    .color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+    .color-swatch::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+  # Dual List Widget
+  dualList: |
+    .dual-list { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; }
+    .dual-list-box {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      height: 160px; overflow-y: auto; font-size: 12px;
+    }
+    .dual-list-box .list-item { padding: 3px 8px; cursor: pointer; }
+    .dual-list-box .list-item:hover { background: var(--surface0); }
+    .dual-list-box .list-item.selected { background: var(--surface1); color: var(--accent); }
+    .dual-list-btns { display: flex; flex-direction: column; gap: 4px; padding-top: 40px; }
+    .dual-list-btns button {
+      background: var(--surface0); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+    }
+    .dual-list-btns button:hover { background: var(--surface1); }
+    .dual-list-container { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; }
+    .dual-list-col { display: flex; flex-direction: column; gap: 4px; }
+    .dual-list-col label { font-size: 11px; color: var(--subtext0); }
+    .dual-list-col select.dual-list {
+      height: 120px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); font-size: 12px;
+    }
+
+  # File List Widget
+  fileList: |
+    .file-list-container { margin-top: 4px; }
+    .file-list {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      padding: 4px 6px; font-size: 11px; font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      color: var(--subtext0); min-height: 40px; max-height: 100px; overflow-y: auto;
+    }
+    .file-list div { padding: 2px 4px; cursor: pointer; border-radius: 2px; user-select: none; }
+    .file-list div:hover { background: var(--surface0); }
+    .file-list div.selected { background: var(--accent); color: var(--base); }
+    .file-list-btns { display: flex; gap: 6px; margin-top: 4px; }
+    .file-list-btns button {
+      padding: 3px 12px; font-size: 11px; border: 1px solid var(--border);
+      border-radius: 4px; background: var(--surface0); color: var(--text); cursor: pointer;
+    }
+    .file-list-btns button:hover { background: var(--surface1); }
+
+  # Body Panel (Celestial Body Config)
+  bodyPanel: |
+    .body-tabs {
+      display: flex; border-bottom: 1px solid var(--border);
+      margin: -16px -16px 12px -16px; padding: 0 8px; background: var(--mantle);
+      flex-shrink: 0; position: sticky; top: -16px; z-index: 10;
+    }
+    .body-tab-btn {
+      padding: 8px 16px; font-size: 12px; font-weight: 500; cursor: pointer;
+      color: var(--overlay1); border: none; background: none;
+      border-bottom: 2px solid transparent; white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .body-tab-btn:hover { color: var(--text); }
+    .body-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .body-tab-pane { display: none; }
+    .body-tab-pane.active { display: block; }
+    .body-panel-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .body-panel-header h2 { font-size: 14px; font-weight: 600; color: var(--text); margin: 0; }
+    .body-panel-header .body-type {
+      font-size: 11px; color: var(--overlay0); background: var(--surface0);
+      padding: 2px 8px; border-radius: 10px;
+    }
+
+  # Visualization Grid
+  visGrid: |
+    .vis-grid { display: grid; grid-template-columns: 1fr 420px; gap: 0 12px; }
+    .vis-left { min-width: 0; }
+    .vis-right { position: relative; overflow: hidden; }
+    .vis-right-heading {
+      font-size: 13px; font-weight: 600; color: var(--accent);
+      margin: 8px 0 6px; padding: 0 4px;
+    }
+
+  # Model Preview
+  modelPreview: |
+    .model-preview-container {
+      position: absolute; top: 60px; left: 0; right: 0; bottom: 0;
+      border: 1px solid var(--surface1); border-radius: 6px;
+      overflow: hidden; background: var(--crust);
+    }
+    .model-preview-container canvas { display: block; width: 100%; height: 100%; }
+    .model-preview-placeholder {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--overlay1); font-size: 12px; pointer-events: none;
+    }
+    .model-preview-toolbar { display: flex; gap: 6px; padding: 4px 0; }
+    .model-preview-toolbar button {
+      font-size: 11px; padding: 4px 8px;
+      background: var(--surface0); border: 1px solid var(--surface1);
+      color: var(--text); border-radius: 4px; cursor: pointer;
+    }
+    .model-preview-toolbar button:hover { background: var(--surface1); }
+    .model-preview-toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .model-preview-toolbar button.active { background: var(--accent); color: var(--crust); }

@@ -1,0 +1,248 @@
+# Ex_FiniteBurn.yaml - Finite Burn Example Mission
+#
+# This YAML file demonstrates tanks, thrusters, and finite maneuver sequences.
+# It can be converted to a GMAT script using:
+#   node scripts/yaml-to-gmat.mjs missions/Ex_FiniteBurn.yaml
+
+version: "1.0"
+name: Ex_FiniteBurn
+description: |
+  Demonstrates how to set up tanks and thrusters, and use them
+  in a finite maneuver sequence.
+
+resources:
+
+  # ---------------------------------------------------------------------------
+  # Spacecraft
+  # ---------------------------------------------------------------------------
+  spacecraft:
+    Sc:
+
+      epoch:
+        format: TAIModJulian
+        value: "21545"
+
+      state:
+        type: Cartesian
+        coordinateSystem: EarthMJ2000Eq
+        position:
+          [7100, 0, 1300]
+        velocity:
+          [0, 7.35, 1]
+
+      mass:
+        dry: 850
+
+      spad:
+        aero:
+          Cd: 2.2
+          DragArea: 15
+          # DragScaleFactor: 1
+        solar:
+          Cr: 1.8
+          SRPArea: 1
+          SRPScaleFactor: 1
+          # SRPInterpolationMethod: Bilinear
+
+      hardware:
+        tanks: [tank1]
+        thrusters: [engine1]
+
+      display:
+        model:
+          file: "../data/vehicle/models/aura.3ds"
+          offsets:
+            x: 0
+            y: 0
+            z: 0
+          rotations:
+            x: 0
+            y: 0
+            z: 0
+          scale: 3
+        orbitColor: Red
+        targetColor: Teal
+
+      NAIFId: -123456789
+      NAIFIdReferenceFrame: -123456789
+
+      EulerAngles:
+        sequence: "321"
+        angles: [0, 0, 0]
+        rates: [0, 0, 0]
+
+      Id: "SatId"
+      Attitude: CoordinateSystemFixed
+      AttitudeDisplayStateType: "Quaternion"
+      AttitudeCoordinateSystem: EarthMJ2000Eq
+      AttitudeRateDisplayStateType: "AngularVelocity"
+
+  # ---------------------------------------------------------------------------
+  # Hardware - Tanks and Thrusters
+  # ---------------------------------------------------------------------------
+  hardware:
+    tanks:
+      tank1:
+        type: ChemicalTank
+        FuelMass: 725
+        Pressure: 1200
+        Temperature: 20
+        RefTemperature: 12
+        Volume: 0.8
+        FuelDensity: 1029
+        PressureModel: PressureRegulated
+        AllowNegativeFuelMass: false
+
+    thrusters:
+      engine1:
+        type: ChemicalThruster
+        CoordinateSystem: Local
+        Origin: Earth
+        Axes: VNB
+        ThrustDirection: [1, 0, 0]
+        DutyCycle: 1
+        ThrustScaleFactor: 1
+        DecrementMass: false
+        Tank: [tank1]
+        GravitationalAccel: 9.81
+        C: [70]       # Thrust polynomial (C1=70, C2-C16=0)
+        K: [1500]     # Isp polynomial (K1=1500, K2-K16=0)
+        MixRatio: "[1]"
+
+  # ---------------------------------------------------------------------------
+  # Force Models
+  # ---------------------------------------------------------------------------
+  forceModels:
+    fm:
+      CentralBody: Earth
+      PointMasses: [Earth]
+      SRP: false
+      RelativisticCorrection: false
+      ErrorControl: RSSStep
+      Drag: None
+
+  # ---------------------------------------------------------------------------
+  # Propagators
+  # ---------------------------------------------------------------------------
+  propagators:
+    prop:
+      FM: fm
+      Type: RungeKutta89
+      InitialStepSize: 60
+      Accuracy: 9.999999999999999e-012
+      MinStep: 0.001
+      MaxStep: 2700
+      MaxStepAttempts: 50
+      StopIfAccuracyIsViolated: true
+
+  # ---------------------------------------------------------------------------
+  # Burns
+  # ---------------------------------------------------------------------------
+  burns:
+    fb:
+      type: FiniteBurn
+      Thrusters: [engine1]
+      ThrottleLogicAlgorithm: MaxNumberOfThrusters
+
+  # ---------------------------------------------------------------------------
+  # Subscribers
+  # ---------------------------------------------------------------------------
+  subscribers:
+    SatOpenGL:
+      type: OrbitView
+      Add: [Sc, Earth]
+      CoordinateSystem: EarthMJ2000Eq
+      DrawObject: [true, true]
+      ViewPointReference: Earth
+      ViewPointVector: [10000, 10000, 10000]
+      ViewDirection: Earth
+      ViewScaleFactor: 5
+      ShowPlot: true
+      Axes: true
+      Grid: false
+      SunLine: false
+      EnableStars: true
+      StarCount: 7000
+      SolverIterations: Current
+      UpperLeft: [0.4770588235294118, 0.05437665782493369]
+      Size: [0.4794117647058824, 0.8342175066312998]
+      RelativeZOrder: 267
+      Maximized: false
+      DataCollectFrequency: 1
+      UpdatePlotFrequency: 50
+      NumPointsToRedraw: 0
+      ShowLabels: true
+      ViewUpCoordinateSystem: EarthMJ2000Eq
+      ViewUpAxis: Z
+      EclipticPlane: false
+      XYPlane: true
+      WireFrame: false
+      UseInitialView: true
+      EnableConstellations: true
+
+    energy:
+      type: XYPlot
+      SolverIterations: Current
+      UpperLeft: [0.1017647058823529, 0.02785145888594165]
+      Size: [0.3605882352941177, 0.4522546419098144]
+      RelativeZOrder: 261
+      Maximized: false
+      XVariable: Sc.Epoch.A1ModJulian
+      YVariables: [Sc.Energy]
+      ShowGrid: true
+      ShowPlot: true
+      
+    SMAvsTime:
+      type: XYPlot
+      SolverIterations: Current
+      UpperLeft: [0.1035294117647059, 0.486737400530504]
+      Size: [0.3605882352941177, 0.4522546419098144]
+      RelativeZOrder: 265
+      Maximized: false
+      XVariable: Sc.Epoch.A1ModJulian
+      YVariables: [Sc.SMA]
+      ShowGrid: true
+      ShowPlot: true
+
+# =============================================================================
+# Mission Sequence
+# =============================================================================
+missionSequence:
+  # Propagate for 0.1 days (8640 seconds), without thrusters on
+  - propagate:
+      label: Prop 0.1 Days
+      propagator: prop
+      spacecraft: [Sc]
+      stop:
+        elapsed:
+          secs: 8640
+
+  # Turn on thrusters for Sc
+  - beginFiniteBurn:
+      label: Turn on Thruster Sc
+      burn: fb
+      spacecraft: Sc
+
+  # Propagate for 1 day with thrusters on
+  - propagate:
+      label: Prop 1 day with burn
+      propagator: prop
+      spacecraft: [Sc]
+      stop:
+        elapsed:
+          days: 1
+
+  # Turn off thrusters for Sc
+  - endFiniteBurn:
+      label: Turn off Thruster Sc
+      burn: fb
+      spacecraft: Sc
+
+  # Propagate for 1 day
+  - propagate:
+      label: Prop 1 Day coast
+      propagator: prop
+      spacecraft: [Sc]
+      stop:
+        elapsed:
+          days: 1
