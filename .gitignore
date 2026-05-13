@@ -4,3 +4,6 @@
 # Build output
 cmake-build/
 application/
+
+# Override root *.md ignore
+!README.md

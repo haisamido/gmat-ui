@@ -19,9 +19,9 @@
 #   docker run -p 8989:8989 gmat-wasm-runtime
 #
 #   # Task integration (from deployments/):
-#   task build                   # Build Docker images
-#   task up                      # Run web UI + native GUI
-#   task x11:run                 # Run native GUI only (X11)
+#   task build                   # Build all images
+#   task up:web                  # Start the web UI
+#   task up:x11                  # Start native GUI (X11)
 
 # =============================================================================
 # Stage 1: Base image with common dependencies
@@ -155,11 +155,23 @@ RUN mkdir -p depends && \
 
 WORKDIR /gmat/deployments
 
-# Build native GMAT (all targets: GUI, console, and plugins)
-RUN task native:build:gmat
+# Configure and build native GMAT (GUI, console, and plugins)
+RUN mkdir -p cmake-build && \
+    cmake -S /gmat -B cmake-build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGMAT_INCLUDE_GUI=ON \
+      -DGMAT_BUILDOUTPUT_DIRECTORY=/gmat/deployments/application && \
+    cmake --build cmake-build --parallel $(nproc)
 
 # Create required runtime directories and copy config
-RUN task native:copy:config || true
+RUN mkdir -p application/bin application/output application/plugins && \
+    for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt \
+             gmat_startup_file.public.txt gmat_startup_file_mac_linux.public.txt \
+             GMAT.ini MacConfigure.txt; do \
+      [ -f /gmat/application/bin/$f ] && cp /gmat/application/bin/$f application/bin/ || true; \
+    done && \
+    [ ! -e application/data ] && ln -s /gmat/application/data application/data || true && \
+    [ ! -e application/samples ] && ln -s /gmat/application/samples application/samples || true
 
 # Remove references to plugins that weren't built (proprietary, MATLAB, external)
 # to prevent buffer overflows from failed plugin loads
@@ -221,13 +233,35 @@ RUN git clone https://github.com/emscripten-core/emsdk.git ${EMSDK} && \
 ENV PATH="${EMSDK}:${EMSDK}/upstream/emscripten:${PATH}"
 
 # Build WASM dependencies (CSPICE and Xerces-C for WebAssembly)
-RUN task web:build:deps
+RUN bash web/build.sh --deps
 
-# Build GMAT for WebAssembly
-RUN task web:build:gmat
+# Configure and build GMAT for WebAssembly
+RUN bash web/build.sh --configure
+RUN bash web/build.sh --build
 
-# Build the UI
-RUN task web:build:ui
+# Generate and assemble the web UI
+RUN SRC_DIR=web/src && \
+    npm install --prefix "$SRC_DIR/scripts" 2>/dev/null && \
+    node "$SRC_DIR/scripts/generate-ui.mjs" "$SRC_DIR/ui-definition.yaml" && \
+    mkdir -p web/ui web/ui/assets web/ui/core web/ui/base && \
+    cp "$SRC_DIR/index.html" "$SRC_DIR/styles.css" "$SRC_DIR/ui-config.js" \
+       "$SRC_DIR/main.js" "$SRC_DIR/sw.js" web/ui/ && \
+    [ -d "$SRC_DIR/assets" ] && cp -r "$SRC_DIR/assets/"* web/ui/assets/ || true && \
+    cp -r "$SRC_DIR/gui/"* web/ui/core/ && \
+    cp -r "$SRC_DIR/base/"* web/ui/base/ && \
+    mkdir -p web/out/ui/core web/out/ui/base web/out/ui/samples && \
+    cp -r web/ui/* web/out/ui/ && \
+    cp -r web/src/gui/* web/out/ui/core/ && \
+    cp -r web/src/base/* web/out/ui/base/ && \
+    grep -v '^#' web/samples_to_include.txt | grep -v '^$' | while read -r script; do \
+      cp "/gmat/application/samples/${script}.script" web/out/ui/samples/ 2>/dev/null || true; \
+    done && \
+    echo "[" > web/out/ui/samples/samples.json && \
+    grep -v '^#' web/samples_to_include.txt | grep -v '^$' | while read -r script; do \
+      echo "  \"${script}.script\"," >> web/out/ui/samples/samples.json; \
+    done && \
+    sed -i '$ s/,$//' web/out/ui/samples/samples.json && \
+    echo "]" >> web/out/ui/samples/samples.json
 
 # Verify the web build
 RUN ls -la web/out/ && \
@@ -244,8 +278,8 @@ RUN ls -la web/out/ && \
 
 EXPOSE 8989
 
-# Default: run web server (WORKDIR stays /gmat/deployments for Taskfile discovery)
-CMD ["task", "web:run"]
+# Default: run web server
+CMD ["node", "web/server.js"]
 
 # =============================================================================
 # Stage 5: Minimal WASM runtime image (just the built artifacts)

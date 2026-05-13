@@ -1,57 +1,21 @@
-# GMAT Build Taskfile
+# GMAT Container Orchestration
 # https://taskfile.dev
 #
 # Usage:
-#   task --list              # List all available tasks
-#   task native:install:deps    # Install dependencies (auto-detects OS)
-#   task native:configure    # Configure CMake build
-#   task native:build:all    # Build native GMAT (all components)
-#   task native:run:gui      # Run native GMAT GUI
-#   task web:run             # Run GMAT web UI in browser
+#   task --list          # List all available tasks
+#   task up:web          # Build and start the web UI
+#   task up:x11          # Build and start the native GUI (X11)
+#   task logs:web        # Follow web UI logs
+#   task down:web        # Stop the web UI
+#   task help            # Show detailed help
 
 version: '3'
 
 silent: true
 
 vars:
-  # Parent of the Taskfile directory (deployments/) is always the project root
-  GIT_ROOT:
-    sh: dirname "$(pwd)"
-  DEPLOY_DIR: '{{.GIT_ROOT}}/deployments'
-  BUILD_DIR: '{{.DEPLOY_DIR}}/cmake-build'
-  APP_DIR: '{{.DEPLOY_DIR}}/application'
-  SRC_APP_DIR: '{{.GIT_ROOT}}/application'
-  DEPENDS_DIR: '{{.GIT_ROOT}}/depends'
-  BUILD_TYPE: 'Release'
-  PARALLEL_JOBS: '{{default "6" .PARALLEL_JOBS}}'
-  WEB_PORT: '{{default "8080" .WEB_PORT}}'
-
   CONTAINER_BIN: docker
-  CONTAINER_FILE: deployments/Containerfile
-  CONTAINER_CONTEXT: .
-  CONTAINER_IMAGE: gmat-builder
-  CONTAINER_TAG: latest
-  CONTAINER_NAME: gmat-web
-  CONTAINER_NAME_TEST: gmat-web-test
-  CONTAINER_HOST: localhost
-
-  COMPOSE_SERVICE: gmat-web
-
-  SERVICE_HOST_PORT: 44444
-  SERVICE_PORT: 44444
-  
-  BASE: http://{{.CONTAINER_HOST}}:{{.SERVICE_HOST_PORT}}
-  UI_BASE: '{{.BASE}}/ui/'
-  API_BASE: '{{.BASE}}/api/'
-
-  PLATFORM: linux/amd64
-
   OS: '{{OS}}'
-
-includes:
-  web:monolithic:
-    taskfile: ./web/monolithic/Taskfile.yaml
-    optional: true
 
 tasks:
   default:
@@ -59,75 +23,138 @@ tasks:
     cmds:
       - task --list
 
-  # =============================================================================
-  # Utility Tasks
-  # =============================================================================
+  # ===========================================================================
+  # Web service
+  # ===========================================================================
 
-  # ============================================
-  # Git Submodule Tasks
-  # ============================================
-
-  submodule-update:
-    desc: sync and update git submodules
+  pull:web:
+    desc: Pull the gmat-web image
     cmds:
-      - git submodule sync; git submodule update --init --recursive; git submodule sync
-    silent: true
+      - "{{.CONTAINER_BIN}} compose pull gmat-web"
 
-  samples:list:
-    desc: List available sample scripts
+  build:web:
+    desc: Build the gmat-web image
+    cmds:
+      - "{{.CONTAINER_BIN}} compose build gmat-web"
+
+  rebuild:web:
+    desc: Rebuild the gmat-web image (no cache)
+    cmds:
+      - "{{.CONTAINER_BIN}} compose build --no-cache gmat-web"
+
+  up:web:
+    desc: Start the gmat-web service
+    aliases: [start:web, run:web]
+    cmds:
+      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans gmat-web"
+
+  down:web:
+    desc: Stop the gmat-web service
+    aliases: [stop:web]
+    cmds:
+      - "{{.CONTAINER_BIN}} compose rm -fs gmat-web"
+
+  logs:web:
+    desc: Follow gmat-web logs
+    cmds:
+      - "{{.CONTAINER_BIN}} compose logs -f gmat-web"
+
+  clean:web:
+    desc: Remove gmat-web container and image
+    deps: [down:web]
+    cmds:
+      - "{{.CONTAINER_BIN}} rmi gmat-builder:latest 2>/dev/null || true"
+
+  # ===========================================================================
+  # X11 service
+  # ===========================================================================
+
+  pull:x11:
+    desc: Pull the gmat-x11 image
+    cmds:
+      - "{{.CONTAINER_BIN}} compose pull gmat-x11"
+
+  build:x11:
+    desc: Build the gmat-x11 image
+    cmds:
+      - "{{.CONTAINER_BIN}} compose build gmat-x11"
+
+  rebuild:x11:
+    desc: Rebuild the gmat-x11 image (no cache)
+    cmds:
+      - "{{.CONTAINER_BIN}} compose build --no-cache gmat-x11"
+
+  up:x11:
+    desc: Start the gmat-x11 service (X11 GUI)
+    aliases: [start:x11, run:x11]
+    deps: [check:x11]
     cmds:
       - |
-        echo "Available sample scripts in {{.SRC_APP_DIR}}/samples/:"
-        echo ""
-        find {{.SRC_APP_DIR}}/samples -name "*.script" -type f 2>/dev/null | sort | head -30 || echo "No samples found"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          xhost +localhost
+        else
+          xhost +local:docker
+        fi
+      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans gmat-x11"
 
-  help:
-    desc: Show detailed help and usage information
+  down:x11:
+    desc: Stop the gmat-x11 service
+    aliases: [stop:x11]
+    cmds:
+      - "{{.CONTAINER_BIN}} compose rm -fs gmat-x11"
+
+  logs:x11:
+    desc: Follow gmat-x11 logs
+    cmds:
+      - "{{.CONTAINER_BIN}} compose logs -f gmat-x11"
+
+  clean:x11:
+    desc: Remove gmat-x11 container and image
+    deps: [down:x11]
+    cmds:
+      - "{{.CONTAINER_BIN}} rmi gmat-native-gui:latest 2>/dev/null || true"
+
+  # ===========================================================================
+  # All services
+  # ===========================================================================
+
+  build:
+    desc: Build all images
+    deps: [build:web, build:x11]
+
+  rebuild:
+    desc: Rebuild all images (no cache)
+    deps: [rebuild:web, rebuild:x11]
+
+  up:
+    desc: Start all services
+    aliases: [start, run]
+    deps: [check:x11]
     cmds:
       - |
-        echo "=== GMAT Build System Help ==="
-        echo ""
-        echo "Quick Start (Native):"
-        echo "  task native:install:deps    # Install dependencies (auto-detects OS)"
-        echo "  task native:configure    # Configure the build"
-        echo "  task native:build:all    # Build GMAT (all components)"
-        echo "  task native:run:gui      # Run GMAT GUI"
-        echo ""
-        echo "Quick Start (Docker):"
-        echo "  task up                  # Build and run web UI + native GUI"
-        echo "  task down                # Stop all containers"
-        echo "  task x11:run             # Run native GUI only (X11)"
-        echo ""
-        echo "Quick Start (Web UI - local):"
-        echo "  task web:build           # Build GMAT for web"
-        echo "  task web:run             # Serve in browser"
-        echo ""
-        echo "Common Workflows:"
-        echo ""
-        echo "  Full native build with GUI:"
-        echo "    task native:install:deps && task native:configure && task native:build:all && task native:run:gui"
-        echo ""
-        echo "  Console-only native build:"
-        echo "    task native:configure:console && task native:build:console && task native:run:console"
-        echo ""
-        echo "  Run a script (native):"
-        echo "    task native:run:script -- /path/to/your/script.script"
-        echo ""
-        echo "  Run a sample mission (native):"
-        echo "    task native:run:sample -- Ex_GEOTransfer.script"
-        echo ""
-        echo "Environment Variables:"
-        echo "  PARALLEL_JOBS    Number of parallel build jobs (default: 4)"
-        echo "  WEB_PORT        WebAssembly server port (default: 8080)"
-        echo ""
-        echo "For more information, see:"
-        echo "  https://gmat.atlassian.net/wiki/spaces/GW/pages/380273355/Compiling+GMAT+CMake+Build+System"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+          xhost +localhost
+        else
+          xhost +local:docker
+        fi
+      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans"
 
-  # =============================================================================
-  # Container Tasks
-  # =============================================================================
+  down:
+    desc: Stop all services
+    aliases: [stop]
+    cmds:
+      - "{{.CONTAINER_BIN}} compose down --remove-orphans"
 
-  container:check:x11:
+  clean:
+    desc: Remove all containers, images, and networks
+    cmds:
+      - "{{.CONTAINER_BIN}} compose down --rmi all --volumes --remove-orphans"
+
+  # ===========================================================================
+  # Utility
+  # ===========================================================================
+
+  check:x11:
     desc: Check that X11 server is running on the host
     cmds:
       - |
@@ -155,1159 +182,28 @@ tasks:
           fi
         fi
 
-  x11:run:
-    desc: Run GMAT GUI in Docker with X11 forwarding (requires XQuartz on macOS)
-    deps:
-      - container:check:x11
+  help:
+    desc: Show detailed help and usage information
     cmds:
       - |
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-          xhost +localhost
-        else
-          xhost +local:docker
-        fi
-      - "{{.CONTAINER_BIN}} compose -f compose.yaml up -d --build --remove-orphans gmat-x11"
-
-  up:
-    desc: Run GMAT web UI and native GUI simultaneously
-    aliases: [run]
-    deps:
-      - container:check:x11
-    cmds:
-      - |
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-          xhost +localhost
-        else
-          xhost +local:docker
-        fi
-      - "{{.CONTAINER_BIN}} compose -f compose.yaml up -d --build --remove-orphans"
-
-  build:gmat-source:
-    desc: Build only the gmat-source stage (clone + deployment overlay)
-    cmds:
-      - "{{.CONTAINER_BIN}} build -f Containerfile --target gmat-source -t gmat-source ."
-
-  build:
-    desc: Build GMAT Docker images
-    cmds:
-      - "{{.CONTAINER_BIN}} compose -f compose.yaml build"
-
-  rebuild:
-    desc: Force rebuild GMAT Docker images (no cache)
-    cmds:
-      - "{{.CONTAINER_BIN}} compose -f compose.yaml build --no-cache"
-
-  down:
-    desc: Stop and remove GMAT containers
-    aliases: [stop]
-    cmds:
-      - "{{.CONTAINER_BIN}} compose -f compose.yaml down --remove-orphans"
-
-  container:shell:
-    desc: Open a shell in the GMAT Docker container
-    cmds:
-      - "{{.CONTAINER_BIN}} run -it --rm {{.CONTAINER_IMAGE}} /bin/bash"
-
-  container:extract:
-    desc: Extract built binaries from Docker to ./docker-output/
-    cmds:
-      - |
-        echo "Extracting GMAT binaries from Docker..."
-        CONTAINER_ID=$({{.CONTAINER_BIN}} create {{.CONTAINER_IMAGE}})
-        mkdir -p docker-output
-        {{.CONTAINER_BIN}} cp "$CONTAINER_ID:/gmat/deployments/application/bin" docker-output/
-        {{.CONTAINER_BIN}} cp "$CONTAINER_ID:/gmat/deployments/application/plugins" docker-output/ 2>/dev/null || true
-        {{.CONTAINER_BIN}} rm "$CONTAINER_ID"
-        echo "Binaries extracted to docker-output/"
-        ls -la docker-output/bin/
-
-  container:clean:
-    desc: Remove GMAT Docker image and containers
-    cmds:
-      - "{{.CONTAINER_BIN}} rm $({{.CONTAINER_BIN}} ps -a -q --filter ancestor={{.CONTAINER_IMAGE}}) 2>/dev/null || true"
-      - "{{.CONTAINER_BIN}} rmi {{.CONTAINER_IMAGE}} 2>/dev/null || true"
-      - rm -rf docker-output/
-      - echo "Docker artifacts cleaned"
-
-
-  # =============================================================================
-  # Web Tasks
-  # =============================================================================
-
-  # =============================================================================
-  # WebAssembly Build Tasks
-  # =============================================================================
-  # NOTE: WASM requires its own compiled dependencies (CSPICE, Xerces-C).
-  # Native/Homebrew versions CANNOT be used because:
-  # - Native binaries are compiled for the host CPU (x86_64/arm64)
-  # - WebAssembly requires code compiled to the WASM target architecture
-  # - Emscripten (emcc) cross-compiles C/C++ source code to WebAssembly bytecode
-  # - The resulting .a libraries contain WASM instructions, not native machine code
-  # This is similar to cross-compiling for a different OS/architecture.
-  # =============================================================================
-
-  web:build:deps:
-    desc: Build CSPICE and Xerces-C for WebAssembly (requires Emscripten SDK)
-    cmds:
-      - bash {{.GIT_ROOT}}/deployments/web/build.sh --deps
-    status:
-      - test -f {{.GIT_ROOT}}/deployments/web/deps/cspice/lib/cspice.a
-      - test -f {{.GIT_ROOT}}/deployments/web/deps/xerces/lib/libxerces-c.a
-
-  # =============================================================================
-  # WebAssembly Configure Tasks
-  # =============================================================================
-
-  web:configure:
-    desc: Configure CMake build for WebAssembly
-    deps:
-      - web:build:deps
-    cmds:
-      - bash {{.GIT_ROOT}}/deployments/web/build.sh --configure
-    sources:
-      - '{{.GIT_ROOT}}/deployments/web/build.sh'
-      - '{{.GIT_ROOT}}/deployments/web/wasm-overrides.cmake'
-      - '{{.GIT_ROOT}}/CMakeLists.txt'
-    status:
-      - test -f {{.GIT_ROOT}}/deployments/web/build/CMakeCache.txt
-
-  web:reconfigure:
-    desc: Force reconfigure WebAssembly build (removes CMakeCache.txt first)
-    cmds:
-      - rm -f {{.GIT_ROOT}}/deployments/web/build/CMakeCache.txt
-      - task: web:configure
-
-  web:build:gmat:
-    desc: Build GMAT Console as WebAssembly (configure + compile)
-    deps:
-      - web:configure
-    cmds:
-      - bash {{.GIT_ROOT}}/deployments/web/build.sh --build
-    sources:
-      - '{{.GIT_ROOT}}/deployments/web/build.sh'
-      - '{{.GIT_ROOT}}/src/**/*.cpp'
-      - '{{.GIT_ROOT}}/src/**/*.hpp'
-      - '{{.GIT_ROOT}}/src/**/*.c'
-      - '{{.GIT_ROOT}}/src/**/*.h'
-    status:
-      - test -f {{.GIT_ROOT}}/deployments/web/out/GmatConsole.js
-      - test -f {{.GIT_ROOT}}/deployments/web/out/GmatConsole.wasm
-      - test -f {{.GIT_ROOT}}/deployments/web/out/GmatConsole.data
-
-  web:build:ui:
-    desc: "Copy modular UI files to out/ (always runs to ensure fresh files)"
-    deps:
-      - web:ui:generate
-    cmds:
-      - mkdir -p {{.GIT_ROOT}}/deployments/web/out/ui/core
-      - mkdir -p {{.GIT_ROOT}}/deployments/web/out/ui/base
-      - cp -r {{.GIT_ROOT}}/deployments/web/ui/* {{.GIT_ROOT}}/deployments/web/out/ui/
-      - cp -r {{.GIT_ROOT}}/deployments/web/src/gui/* {{.GIT_ROOT}}/deployments/web/out/ui/core/
-      - cp -r {{.GIT_ROOT}}/deployments/web/src/base/* {{.GIT_ROOT}}/deployments/web/out/ui/base/
-      # Copy sample scripts for Load Sample (read list from samples_to_include.txt)
-      - mkdir -p {{.GIT_ROOT}}/deployments/web/out/ui/samples
-      - |
-        grep -v '^#' "{{.GIT_ROOT}}/deployments/web/samples_to_include.txt" | grep -v '^$' | while read -r script; do
-          cp "{{.SRC_APP_DIR}}/samples/${script}.script" "{{.GIT_ROOT}}/deployments/web/out/ui/samples/" 2>/dev/null || true
-        done
-      # Generate samples.json for the UI
-      - |
-        echo "[" > "{{.GIT_ROOT}}/deployments/web/out/ui/samples/samples.json"
-        grep -v '^#' "{{.GIT_ROOT}}/deployments/web/samples_to_include.txt" | grep -v '^$' | while read -r script; do
-          echo "  \"${script}.script\"," >> "{{.GIT_ROOT}}/deployments/web/out/ui/samples/samples.json"
-        done
-        sed -i.bak '$ s/,$//' "{{.GIT_ROOT}}/deployments/web/out/ui/samples/samples.json" && rm -f "{{.GIT_ROOT}}/deployments/web/out/ui/samples/samples.json.bak"
-        echo "]" >> "{{.GIT_ROOT}}/deployments/web/out/ui/samples/samples.json"
-
-  web:ui:generate:
-    desc: "Generate UI files from ui-definition.yaml to src/, then copy to ui/"
-    cmds:
-      - |
-        SRC_DIR="{{.GIT_ROOT}}/deployments/web/src"
-        UI_DIR="{{.GIT_ROOT}}/deployments/web/ui"
-        YAML_FILE="$SRC_DIR/ui-definition.yaml"
-
-        echo "[generate-ui] Source dir: $SRC_DIR"
-
-        # Check if js-yaml is installed in scripts directory
-        if ! npm list js-yaml --prefix "$SRC_DIR/scripts" >/dev/null 2>&1; then
-          echo "[generate-ui] Installing js-yaml..."
-          npm install --prefix "$SRC_DIR/scripts" >/dev/null 2>&1
-        fi
-
-        # Run the generator (outputs to src/ by default)
-        node "$SRC_DIR/scripts/generate-ui.mjs" "$YAML_FILE"
-
-        # Copy from src/ to ui/ for serving
-        echo "[generate-ui] Copying to $UI_DIR..."
-        mkdir -p "$UI_DIR"
-
-        # Copy generated files
-        cp "$SRC_DIR/index.html" "$UI_DIR/"
-        cp "$SRC_DIR/styles.css" "$UI_DIR/"
-        cp "$SRC_DIR/ui-config.js" "$UI_DIR/"
-
-        # Copy source files
-        cp "$SRC_DIR/main.js" "$UI_DIR/"
-        cp "$SRC_DIR/sw.js" "$UI_DIR/"
-
-        # Copy assets
-        if [ -d "$SRC_DIR/assets" ]; then
-          mkdir -p "$UI_DIR/assets"
-          cp -r "$SRC_DIR/assets/"* "$UI_DIR/assets/"
-          echo "[generate-ui] Copied: $UI_DIR/assets/"
-        fi
-
-        # Copy GUI modules (src/gui/ → ui/core/)
-        if [ -d "$SRC_DIR/gui" ]; then
-          mkdir -p "$UI_DIR/core"
-          cp -r "$SRC_DIR/gui/"* "$UI_DIR/core/"
-          echo "[generate-ui] Copied: $UI_DIR/core/ (GUI modules)"
-        fi
-
-        # Copy base modules
-        if [ -d "$SRC_DIR/base" ]; then
-          mkdir -p "$UI_DIR/base"
-          cp -r "$SRC_DIR/base/"* "$UI_DIR/base/"
-          echo "[generate-ui] Copied: $UI_DIR/base/ (base modules)"
-        fi
-
+        echo "=== GMAT Container Tasks ==="
         echo ""
-        echo "[generate-ui] Generated files in $SRC_DIR (version controlled)"
-        echo "[generate-ui] Copied to $UI_DIR (for serving)"
-
-  web:build:
-    desc: Build GMAT WebAssembly (deps + gmat + ui)
-    deps:
-      - web:build:gmat   # → web:configure → web:build:deps (linear chain)
-      - web:build:ui
-
-  web:rebuild:
-    desc: Clean and rebuild WebAssembly GMAT
-    cmds:
-      - task: web:clean
-      - task: web:build
-
-  web:rebuild:deps:
-    desc: Force rebuild WebAssembly dependencies (removes and re-downloads)
-    cmds:
-      - rm -rf {{.GIT_ROOT}}/deployments/web/deps
-      - task: web:build:deps
-
-  # =============================================================================
-  # WebAssembly Run Tasks
-  # =============================================================================
-
-  web:run:
-    desc: "Serve GMAT WebAssembly in browser (default port 8080, override with WEB_PORT=xxxx)"
-    cmds:
-      - task: web:stop
-      - task: web:build
-      - task: web:build:ui
-      - echo "Starting server on http://localhost:{{.WEB_PORT}}/ui/"
-      - bash {{.GIT_ROOT}}/deployments/web/build.sh --run {{.WEB_PORT}}
-    silent: false
-
-  web:stop:
-    desc: "Stop the web HTTP server (default port 8080, override with WEB_PORT=xxxx)"
-    cmds:
-      - |
-        PIDS=$(lsof -ti:{{.WEB_PORT}} 2>/dev/null || true)
-        if [ -n "$PIDS" ]; then
-          echo "$PIDS" | xargs kill -9 2>/dev/null && echo "Stopped server on port {{.WEB_PORT}}" || echo "Failed to stop server"
-        else
-          echo "No server running on port {{.WEB_PORT}}"
-        fi
-        exit 0
-
-  web:clean:
-    desc: Clean WebAssembly build artifacts (preserves dependencies)
-    cmds:
-      - bash {{.GIT_ROOT}}/deployments/web/build.sh --clean
-
-  web:clean:all:
-    desc: Clean all WebAssembly artifacts including dependencies
-    cmds:
-      - bash {{.GIT_ROOT}}/deployments/web/build.sh --clean-all
-    silent: false
-
-  web:info:
-    desc: Show WebAssembly build configuration and status
-    cmds:
-      - |
-        WASM_DIR="{{.GIT_ROOT}}/deployments/web"
-        WASM_BUILD="${WASM_DIR}/build"
-        WASM_DEPS="${WASM_DIR}/deps"
-        WASM_OUT="${WASM_DIR}/out"
-
-        echo "╔══════════════════════════════════════════════════════════════════╗"
-        echo "║              GMAT WebAssembly Build Configuration                ║"
-        echo "╚══════════════════════════════════════════════════════════════════╝"
+        echo "Per-service (replace 'web' with 'x11' for native GUI):"
+        echo "  task pull:web         Pull pre-built image"
+        echo "  task build:web        Build image"
+        echo "  task rebuild:web      Rebuild image (no cache)"
+        echo "  task up:web           Start service  (aliases: start:web, run:web)"
+        echo "  task down:web         Stop service   (aliases: stop:web)"
+        echo "  task logs:web         Follow logs"
+        echo "  task clean:web        Remove container and image"
         echo ""
-        echo "┌─ Directories ─────────────────────────────────────────────────────"
-        echo "│ Root:         {{.GIT_ROOT}}"
-        echo "│ WASM Root:    ${WASM_DIR}"
-        echo "│ Build:        ${WASM_BUILD}"
-        echo "│ Dependencies: ${WASM_DEPS}"
-        echo "│ Output:       ${WASM_OUT}"
+        echo "All services:"
+        echo "  task build            Build all images"
+        echo "  task rebuild          Rebuild all images (no cache)"
+        echo "  task up               Start all services  (aliases: start, run)"
+        echo "  task down             Stop all services   (aliases: stop)"
+        echo "  task clean            Remove all containers, images, and networks"
         echo ""
-        echo "┌─ Build Settings ──────────────────────────────────────────────────"
-        echo "│ Server Port:    {{.WEB_PORT}}"
-        echo "│ Parallel Jobs:  {{.PARALLEL_JOBS}}"
-        echo "│ Platform:       {{.OS}} / {{ARCH}}"
-        echo ""
-        echo "┌─ Emscripten SDK (Toolchain) ────────────────────────────────────"
-        if command -v emcc &> /dev/null; then
-          EMCC_VER=$(emcc --version 2>/dev/null | head -1)
-          echo "│ emcc:         ✓ ${EMCC_VER}"
-        else
-          echo "│ emcc:         ✗ not found (activate emsdk first)"
-        fi
-        echo ""
-        echo "┌─ WASM Dependencies (deployments/web/deps/) ────────────────────────────"
-        printf "│ CSPICE:       "; test -f "${WASM_DEPS}/cspice/lib/cspice.a" && echo "✓ built ($(du -sh "${WASM_DEPS}/cspice/lib/cspice.a" 2>/dev/null | cut -f1))" || echo "✗ not built"
-        printf "│ Xerces-C:     "; test -f "${WASM_DEPS}/xerces/lib/libxerces-c.a" && echo "✓ built ($(du -sh "${WASM_DEPS}/xerces/lib/libxerces-c.a" 2>/dev/null | cut -f1))" || echo "✗ not built"
-        echo ""
-        echo "┌─ SPK Ephemeris Data ──────────────────────────────────────────────"
-        echo "│ Bundled in GmatConsole.data (Emscripten preloads application/data/)"
-        printf "│ DE405AllPlanets.bsp: "; test -f "{{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE405AllPlanets.bsp" && echo "✓ present (will be bundled)" || echo "✗ missing"
-        printf "│ DE421AllPlanets.bsp: "; test -f "{{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE421AllPlanets.bsp" && echo "✓ present (will be bundled)" || echo "✗ missing"
-        printf "│ DE424AllPlanets.bsp: "; test -f "{{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE424AllPlanets.bsp" && echo "✓ present (will be bundled)" || echo "✗ missing"
-        echo ""
-        echo "┌─ Build Status ────────────────────────────────────────────────────"
-        if [ -f "${WASM_BUILD}/CMakeCache.txt" ]; then
-          echo "│ CMake:        ✓ configured"
-        else
-          echo "│ CMake:        ✗ not configured (run 'task web:configure')"
-        fi
-        echo ""
-        echo "┌─ Output Files (deployments/web/out/) ──────────────────────────────────"
-        printf "│ GmatConsole.js:   "; test -f "${WASM_OUT}/GmatConsole.js" && echo "✓ built ($(du -sh "${WASM_OUT}/GmatConsole.js" 2>/dev/null | cut -f1))" || echo "✗ not built"
-        printf "│ GmatConsole.wasm: "; test -f "${WASM_OUT}/GmatConsole.wasm" && echo "✓ built ($(du -sh "${WASM_OUT}/GmatConsole.wasm" 2>/dev/null | cut -f1))" || echo "✗ not built"
-        printf "│ GmatConsole.data: "; test -f "${WASM_OUT}/GmatConsole.data" && echo "✓ built ($(du -sh "${WASM_OUT}/GmatConsole.data" 2>/dev/null | cut -f1))" || echo "✗ not built"
-        printf "│ UI (index.html):  "; test -f "${WASM_OUT}/ui/index.html" && echo "✓ copied" || echo "✗ not copied"
-        echo ""
-        echo "┌─ Server Status ───────────────────────────────────────────────────"
-        if lsof -ti:{{.WEB_PORT}} >/dev/null 2>&1; then
-          echo "│ HTTP Server:  ✓ running on port {{.WEB_PORT}}"
-          echo "│ URL:          http://localhost:{{.WEB_PORT}}/ui/"
-        else
-          echo "│ HTTP Server:  ✗ not running"
-        fi
-        echo ""
-        echo "┌─ UI Source Structure ──────────────────────────────────────────────"
-        echo "│ deployments/web/ui/          Entry point (index.html imports ES modules + CSS)"
-        echo "│ deployments/web/src/gui/     JS GUI modules (panels, widgets, app, orbit viewer)"
-        echo "│ deployments/web/src/base/    JS core modules (data store, WASM runner, script gen)"
-        echo "│"
-        echo "│ ui/index.html loads src/gui/app/GmatApp.js which imports everything else."
-        echo "│ At build time, 'task web:build:ui' copies to out/ui/{core,base}/ for serving."
-        echo ""
-        echo "┌─ Quick Commands ──────────────────────────────────────────────────"
-        echo "│ task web:build:deps    # Build CSPICE + Xerces for WASM"
-        echo "│ task web:configure     # Configure CMake"
-        echo "│ task web:build         # Build all (deps + gmat + ui)"
-        echo "│ task web:build:ui      # Rebuild UI only (fast)"
-        echo "│ task web:run           # Serve on http://localhost:{{.WEB_PORT}}/ui/"
-        echo "│ task web:stop          # Stop HTTP server"
-        echo "│ task web:test          # Run sample script tests"
-        echo "└───────────────────────────────────────────────────────────────────"
-
-  web:test:
-    desc: Run GMAT sample scripts against the WebAssembly build
-    deps:
-      - web:build
-    cmds:
-      - node --max-old-space-size=4096 {{.GIT_ROOT}}/deployments/web/test/run-tests.mjs {{.CLI_ARGS}}
-
-  # =============================================================================
-  # YAML Mission Conversion Tasks
-  # =============================================================================
-
-  web:yaml:convert:
-    desc: "Convert YAML mission file to GMAT script (defaults to Ex_FiniteBurn.yaml)"
-    cmds:
-      - |
-        SRC_DIR="{{.GIT_ROOT}}/deployments/web/src"
-        SCRIPTS_DIR="$SRC_DIR/scripts"
-        DEFAULT_INPUT="$SRC_DIR/missions/Ex_FiniteBurn.yaml"
-
-        # Check if js-yaml is installed
-        if ! npm list js-yaml --prefix "$SCRIPTS_DIR" >/dev/null 2>&1; then
-          echo "[yaml-to-gmat] Installing js-yaml..."
-          npm install --prefix "$SCRIPTS_DIR" >/dev/null 2>&1
-        fi
-
-        # Run the converter (use default if no args provided)
-        if [ -z "{{.CLI_ARGS}}" ]; then
-          node "$SCRIPTS_DIR/yaml-to-gmat.mjs" "$DEFAULT_INPUT"
-        else
-          node "$SCRIPTS_DIR/yaml-to-gmat.mjs" {{.CLI_ARGS}}
-        fi
-
-  web:yaml:convert:verbose:
-    desc: "Convert YAML mission file to GMAT script with verbose output (defaults to Ex_FiniteBurn.yaml)"
-    cmds:
-      - |
-        SRC_DIR="{{.GIT_ROOT}}/deployments/web/src"
-        SCRIPTS_DIR="$SRC_DIR/scripts"
-        DEFAULT_INPUT="$SRC_DIR/missions/Ex_FiniteBurn.yaml"
-
-        # Check if js-yaml is installed
-        if ! npm list js-yaml --prefix "$SCRIPTS_DIR" >/dev/null 2>&1; then
-          echo "[yaml-to-gmat] Installing js-yaml..."
-          npm install --prefix "$SCRIPTS_DIR" >/dev/null 2>&1
-        fi
-
-        # Run the converter with verbose flag (use default if no args provided)
-        if [ -z "{{.CLI_ARGS}}" ]; then
-          node "$SCRIPTS_DIR/yaml-to-gmat.mjs" --verbose "$DEFAULT_INPUT"
-        else
-          node "$SCRIPTS_DIR/yaml-to-gmat.mjs" --verbose {{.CLI_ARGS}}
-        fi
-
-  web:yaml:diff:
-    desc: "Compare generated Ex_FiniteBurn.script with original .script.orig (sorted diff)"
-    cmds:
-      - |
-        WEB_DIR="{{.GIT_ROOT}}/deployments/web"
-        SCRIPT="$WEB_DIR/src/missions/Ex_FiniteBurn.script"
-        ORIG="$WEB_DIR/src/missions/Ex_FiniteBurn.script.orig"
-
-        if [ ! -f "$SCRIPT" ]; then
-          echo "Error: $SCRIPT not found. Run 'task web:yaml:convert' first."
-          exit 1
-        fi
-        if [ ! -f "$ORIG" ]; then
-          echo "Error: $ORIG not found."
-          exit 1
-        fi
-
-        echo "Comparing generated script with original (sorted)..."
-        diff -w <(cat "$SCRIPT" | sort | grep -v %) <(cat "$ORIG" | sort | grep -v %) || true
-
-  # =============================================================================
-  # Native Guard (blocks local macOS builds — use Docker instead)
-  # =============================================================================
-  native:guard:
-    desc: Verify native builds are running inside Docker (not on macOS host)
-    internal: true
-    preconditions:
-      - sh: test -f /.dockerenv || test "{{.OS}}" != "darwin"
-        msg: |
-          Native builds are not supported on macOS.
-          Use Docker instead:  task up
-          Or build images:     task build
-
-  # =============================================================================
-  # Native Dependencies Tasks
-  # =============================================================================
-  native:install:deps:
-    desc: Install native dependencies (auto-detects OS and package manager)
-    deps:
-      - native:guard
-    cmds:
-      - |
-        {{if eq .OS "darwin"}}
-          echo "Installing dependencies via Homebrew..."
-          brew install wxwidgets@3.2 xerces-c swig cspice
-          brew link wxwidgets@3.2 --force 2>/dev/null || true
-          # Create symlink so CMake finds CSPICE in expected location
-          mkdir -p {{.DEPENDS_DIR}}/cspice/macosx
-          ln -sfn /opt/homebrew/opt/cspice {{.DEPENDS_DIR}}/cspice/macosx/cspice64
-        {{else if eq .OS "linux"}}
-          echo "Installing dependencies via apt..."
-          sudo apt-get update
-          sudo apt-get install -y libwxgtk3.2-dev libxerces-c-dev swig
-          echo "Note: CSPICE must be downloaded separately. Run 'task native:download:src:cspice'"
-        {{else}}
-          echo "Unsupported OS: {{.OS}}"
-          echo "Please install wxWidgets, Xerces-C, SWIG, and CSPICE manually."
-          exit 1
-        {{end}}
-    status:
-      - |
-        {{if eq .OS "darwin"}}
-          brew list wxwidgets@3.2 && brew list xerces-c && brew list swig && brew list cspice && test -L {{.DEPENDS_DIR}}/cspice/macosx/cspice64
-        {{else if eq .OS "linux"}}
-          dpkg -l libwxgtk3.2-dev libxerces-c-dev swig
-        {{else}}
-          false
-        {{end}}
-
-  native:download:src:deps:
-    desc: Download and build all native dependencies (CSPICE, wxWidgets, xerces)
-    dir: '{{.DEPENDS_DIR}}'
-    cmds:
-      - python3 configure.py
-    status:
-      - test -d {{.DEPENDS_DIR}}/cspice/macosx/cspice64/lib
-
-  native:download:src:cspice:
-    desc: Download and build only CSPICE for native (use when wxWidgets/xerces are from package manager)
-    dir: '{{.DEPENDS_DIR}}'
-    vars:
-      CSPICE_VERSION: 'N0067'
-      CSPICE_ARCH: '{{if eq ARCH "arm64"}}MacM1_OSX_clang{{else}}MacIntel_OSX_AppleC{{end}}'
-    cmds:
-      - mkdir -p {{.DEPENDS_DIR}}/cspice/macosx
-      - mkdir -p {{.DEPENDS_DIR}}/logs
-      - |
-        cd {{.DEPENDS_DIR}}/cspice/macosx
-        if [ ! -d cspice64 ]; then
-          echo "Downloading CSPICE {{.CSPICE_VERSION}}..."
-          curl -s "https://naif.jpl.nasa.gov/pub/naif/misc/toolkit_{{.CSPICE_VERSION}}/C/{{.CSPICE_ARCH}}_64bit/packages/cspice.tar.Z" > cspice.tar.Z
-          gzip -d cspice.tar.Z
-          tar -xf cspice.tar
-          mv cspice cspice64
-          rm -f cspice.tar
-          echo "CSPICE downloaded."
-        fi
-      - |
-        cd {{.DEPENDS_DIR}}/cspice/macosx/cspice64/src/cspice
-        if [ ! -f ../../lib/cspiced.a ]; then
-          echo "Building CSPICE debug library..."
-          export TKCOMPILEOPTIONS="-m64 -c -ansi -mmacosx-version-min=11.0 -Wno-error=implicit-function-declaration -g -fPIC -DNON_UNIX_STDIO -DUIOLEN_int"
-          ./mkprodct.csh > "{{.DEPENDS_DIR}}/logs/cspice_build_debug.log" 2>&1
-          mv ../../lib/cspice.a ../../lib/cspiced.a
-          echo "CSPICE debug library built."
-        fi
-      - |
-        cd {{.DEPENDS_DIR}}/cspice/macosx/cspice64/src/cspice
-        if [ ! -f ../../lib/cspice.a ]; then
-          echo "Building CSPICE release library..."
-          export TKCOMPILEOPTIONS="-m64 -c -ansi -mmacosx-version-min=11.0 -Wno-error=implicit-function-declaration -O2 -fPIC -DNON_UNIX_STDIO -DUIOLEN_int"
-          ./mkprodct.csh > "{{.DEPENDS_DIR}}/logs/cspice_build_release.log" 2>&1
-          echo "CSPICE release library built."
-        fi
-    status:
-      - test -f {{.DEPENDS_DIR}}/cspice/macosx/cspice64/lib/cspice.a
-      - test -f {{.DEPENDS_DIR}}/cspice/macosx/cspice64/lib/cspiced.a
-
-  native:install:spk:
-    desc: Build merged SPK ephemeris kernels using NAIF spkmerge (downloads ~1.7GB of source kernels)
-    cmds:
-      - bash scripts/build_spk_kernels.sh all
-    status:
-      - test -f {{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE405AllPlanets.bsp
-      - test -f {{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE421AllPlanets.bsp
-      - test -f {{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE424AllPlanets.bsp
-
-  native:install:spk:de405:
-    desc: Build only DE405AllPlanets.bsp using NAIF spkmerge
-    cmds:
-      - bash scripts/build_spk_kernels.sh de405
-    status:
-      - test -f {{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE405AllPlanets.bsp
-
-  native:clean:spk:
-    desc: Remove spkmerge work directory (downloaded source kernels and tools)
-    cmds:
-      - bash scripts/build_spk_kernels.sh clean
-
-  native:rebuild:deps:
-    desc: Force rebuild all native dependencies (removes and re-downloads)
-    dir: '{{.DEPENDS_DIR}}'
-    cmds:
-      - rm -rf {{.DEPENDS_DIR}}/wxWidgets
-      - rm -rf {{.DEPENDS_DIR}}/xerces
-      - rm -rf {{.DEPENDS_DIR}}/cspice
-      - rm -rf {{.DEPENDS_DIR}}/swig
-      - python3 configure.py
-
-  native:check:deps:
-    desc: Check for required native dependencies
-    cmds:
-      - |
-        echo "Checking dependencies..."
-        echo ""
-        echo "CMake:"
-        cmake --version || echo "  ERROR: CMake not found!"
-        echo ""
-        echo "C++ Compiler:"
-        {{if eq .OS "darwin"}}
-        clang++ --version || echo "  ERROR: Clang not found!"
-        {{else}}
-        g++ --version || echo "  ERROR: g++ not found!"
-        {{end}}
-        echo ""
-        echo "Make:"
-        make --version | head -1 || echo "  ERROR: Make not found!"
-        echo ""
-        echo "wxWidgets (optional for GUI):"
-        if [ -d "{{.GIT_ROOT}}/depends/wxWidgets" ]; then
-          echo "  Found in depends/wxWidgets"
-        else
-          wx-config --version 2>/dev/null || echo "  Not found (required for GUI)"
-        fi
-
-  # =============================================================================
-  # Native Configuration Tasks
-  # =============================================================================
-
-  native:configure:
-    desc: Configure native CMake build (Release mode with GUI)
-    deps:
-      - native:guard
-    cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - cmake -S {{.GIT_ROOT}} -B {{.BUILD_DIR}} -DCMAKE_BUILD_TYPE={{.BUILD_TYPE}} -DGMAT_INCLUDE_GUI=ON -DGMAT_BUILDOUTPUT_DIRECTORY={{.APP_DIR}}
-    status:
-      - test -f {{.BUILD_DIR}}/CMakeCache.txt
-      - test -f {{.BUILD_DIR}}/Makefile
-
-  native:configure:debug:
-    desc: Configure native CMake build (Debug mode with GUI)
-    cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - cmake -S {{.GIT_ROOT}} -B {{.BUILD_DIR}} -DCMAKE_BUILD_TYPE=Debug -DGMAT_INCLUDE_GUI=ON -DGMAT_BUILDOUTPUT_DIRECTORY={{.APP_DIR}}
-
-  native:configure:console:
-    desc: Configure native CMake build (Release mode, console only - no GUI)
-    cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - cmake -S {{.GIT_ROOT}} -B {{.BUILD_DIR}} -DCMAKE_BUILD_TYPE={{.BUILD_TYPE}} -DGMAT_INCLUDE_GUI=OFF -DGMAT_BUILDOUTPUT_DIRECTORY={{.APP_DIR}}
-
-  native:configure:python:
-    desc: Configure native CMake build with Python API (GUI + gmatpy, no CSALT)
-    cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - cmake -S {{.GIT_ROOT}} -B {{.BUILD_DIR}} -DCMAKE_BUILD_TYPE={{.BUILD_TYPE}} -DGMAT_INCLUDE_GUI=ON -DGMAT_INCLUDE_API=ON -DAPI_GENERATE_PYTHON=ON -DAPI_GENERATE_JAVA=OFF -DGMAT_BUILDOUTPUT_DIRECTORY={{.APP_DIR}}
-
-  native:configure:full:
-    desc: Configure native CMake build with all optional features (GUI, CSALT, API) - requires SNOPT
-    cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - cmake -S {{.GIT_ROOT}} -B {{.BUILD_DIR}} -DCMAKE_BUILD_TYPE={{.BUILD_TYPE}} -DGMAT_INCLUDE_GUI=ON -DGMAT_INCLUDE_CSALT=ON -DGMAT_INCLUDE_API=ON -DAPI_GENERATE_PYTHON=ON -DAPI_GENERATE_JAVA=OFF -DGMAT_BUILDOUTPUT_DIRECTORY={{.APP_DIR}}
-
-  native:reconfigure:
-    desc: Force reconfigure native build (removes CMakeCache.txt first)
-    cmds:
-      - rm -f {{.BUILD_DIR}}/CMakeCache.txt
-      - task: native:configure
-
-  # =============================================================================
-  # Native Build Tasks
-  # =============================================================================
-
-  native:build:deps:
-    desc: Build native dependencies from source (CSPICE, wxWidgets, xerces)
-    cmds:
-      - task: native:download:src:deps
-
-  native:build:gmat:
-    desc: Build native GMAT (configure + compile)
-    deps:
-      - native:configure
-    cmds:
-      - cmake --build {{.BUILD_DIR}} --parallel {{.PARALLEL_JOBS}}
-      - task: native:copy:config
-
-  native:build:all:
-    desc: Build all native GMAT components (deps + base + gui + console + plugins)
-    deps:
-      - native:build:deps
-      - native:build:gmat
-
-  native:build:gui:
-    desc: Build only the native GMAT GUI application
-    deps:
-      - native:configure
-    cmds:
-      - cmake --build {{.BUILD_DIR}} --target GmatGUI --parallel {{.PARALLEL_JOBS}}
-      - task: native:copy:config
-
-  native:build:console:
-    desc: Build only the native GMAT Console application
-    deps:
-      - native:configure
-    cmds:
-      - cmake --build {{.BUILD_DIR}} --target GmatConsole --parallel {{.PARALLEL_JOBS}}
-      - task: native:copy:config
-
-  native:build:base:
-    desc: Build only the native GmatBase library
-    deps:
-      - native:configure
-    cmds:
-      - cmake --build {{.BUILD_DIR}} --target GmatBase --parallel {{.PARALLEL_JOBS}}
-
-  native:build:plugins:
-    desc: Build all native plugins
-    deps:
-      - native:configure
-    cmds:
-      - cmake --build {{.BUILD_DIR}} --target plugins --parallel {{.PARALLEL_JOBS}}
-
-  native:rebuild:
-    desc: Clean and rebuild native GMAT
-    cmds:
-      - task: native:clean:build
-      - task: native:build:all
-
-  native:copy:config:
-    desc: Copy GMAT configuration and data files to deployments/application/ (run after native build)
-    cmds:
-      - |
-        echo "Copying GMAT configuration and data files..."
-        mkdir -p "{{.APP_DIR}}/bin"
-        mkdir -p "{{.APP_DIR}}/output"
-        mkdir -p "{{.APP_DIR}}/plugins"
-
-        # Copy config files from source application/bin/
-        CONFIG_SRC="{{.SRC_APP_DIR}}/bin"
-        CONFIG_DST="{{.APP_DIR}}/bin"
-        for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt gmat_startup_file.public.txt gmat_startup_file_mac_linux.public.txt GMAT.ini MacConfigure.txt; do
-          if [ -f "$CONFIG_SRC/$f" ]; then
-            cp "$CONFIG_SRC/$f" "$CONFIG_DST/"
-            echo "  Copied $f"
-          fi
-        done
-
-        # Symlink data directory from source (avoid duplicating ~240 MB)
-        if [ ! -e "{{.APP_DIR}}/data" ]; then
-          ln -s "{{.SRC_APP_DIR}}/data" "{{.APP_DIR}}/data"
-          echo "  Linked data/ -> source application/data/"
-        fi
-
-        # Symlink samples directory from source
-        if [ ! -e "{{.APP_DIR}}/samples" ]; then
-          ln -s "{{.SRC_APP_DIR}}/samples" "{{.APP_DIR}}/samples"
-          echo "  Linked samples/ -> source application/samples/"
-        fi
-
-        # Copy gmatpy directory if it exists
-        GMATPY_SRC="{{.GIT_ROOT}}/config/gmatpy"
-        if [ -d "$GMATPY_SRC" ] && [ ! -d "$CONFIG_DST/gmatpy" ]; then
-          cp -r "$GMATPY_SRC" "$CONFIG_DST/"
-          echo "  Copied gmatpy/"
-        fi
-
-        echo "Configuration files ready in {{.APP_DIR}}/"
-    silent: true
-
-  # =============================================================================
-  # Native Run Tasks
-  # =============================================================================
-
-  native:run:gui:
-    desc: Run native GMAT GUI application
-    deps:
-      - native:build:all
-    dir: '{{.APP_DIR}}/bin'
-    env:
-      DYLD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-      LD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-    cmds:
-      - |
-        {{if eq .OS "darwin"}}
-        if [ -d "GMAT-R2026a_Beta.app" ]; then
-          open GMAT-R2026a_Beta.app
-        elif [ -f "./GMAT" ]; then
-          ./GMAT
-        else
-          echo "GMAT GUI not found. Run 'task native:build:all' first."
-          exit 1
-        fi
-        {{else if eq .OS "linux"}}
-        if [ -f "./GMAT_Beta" ]; then
-          ./GMAT_Beta
-        elif [ -f "./GMAT" ]; then
-          ./GMAT
-        else
-          echo "GMAT GUI not found. Run 'task native:build:all' first."
-          exit 1
-        fi
-        {{else}}
-        ./GMAT.exe
-        {{end}}
-
-  native:run:console:
-    desc: Run native GMAT Console application
-    deps:
-      - native:build:all
-    dir: '{{.APP_DIR}}/bin'
-    env:
-      DYLD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-      LD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-    cmds:
-      - |
-        {{if eq .OS "darwin"}}
-        if [ -d "GMAT-R2026a_Beta.app" ]; then
-          ./GMAT-R2026a_Beta.app/Contents/MacOS/GmatConsole
-        elif [ -f "./GmatConsole" ]; then
-          ./GmatConsole
-        else
-          echo "GmatConsole not found. Run 'task native:build:console' first."
-          exit 1
-        fi
-        {{else if eq .OS "linux"}}
-        ./GmatConsole
-        {{else}}
-        ./GmatConsole.exe
-        {{end}}
-
-  native:run:script:
-    desc: "Run a GMAT script file via native console (usage: task native:run:script -- path/to/script.script)"
-    deps:
-      - native:build:all
-    dir: '{{.APP_DIR}}/bin'
-    env:
-      DYLD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-      LD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-    cmds:
-      - |
-        {{if eq .OS "darwin"}}
-        if [ -d "GMAT-R2026a_Beta.app" ]; then
-          ./GMAT-R2026a_Beta.app/Contents/MacOS/GmatConsole --run {{.CLI_ARGS}}
-        else
-          ./GmatConsole --run {{.CLI_ARGS}}
-        fi
-        {{else if eq .OS "linux"}}
-        ./GmatConsole --run {{.CLI_ARGS}}
-        {{else}}
-        ./GmatConsole.exe --run {{.CLI_ARGS}}
-        {{end}}
-
-  native:run:sample:
-    desc: "Run a sample mission script via native console (e.g., task native:run:sample -- Ex_GEOTransfer.script)"
-    deps:
-      - native:build:all
-    dir: '{{.APP_DIR}}/bin'
-    env:
-      DYLD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-      LD_LIBRARY_PATH: '{{.APP_DIR}}/bin:{{.APP_DIR}}/plugins'
-    cmds:
-      - |
-        SCRIPT="{{.SRC_APP_DIR}}/samples/{{.CLI_ARGS}}"
-        {{if eq .OS "darwin"}}
-        if [ -d "GMAT-R2026a_Beta.app" ]; then
-          ./GMAT-R2026a_Beta.app/Contents/MacOS/GmatConsole --run "$SCRIPT"
-        else
-          ./GmatConsole --run "$SCRIPT"
-        fi
-        {{else if eq .OS "linux"}}
-        ./GmatConsole --run "$SCRIPT"
-        {{else}}
-        ./GmatConsole.exe --run "$SCRIPT"
-        {{end}}
-
-  # =============================================================================
-  # Native Installation Tasks
-  # =============================================================================
-
-  native:install:
-    desc: Install native GMAT to the default location
-    deps:
-      - native:build:all
-    cmds:
-      - cmake --install {{.BUILD_DIR}}
-
-  native:install:custom:
-    desc: "Install native GMAT to a custom location (usage: task native:install:custom -- /path/to/install)"
-    deps:
-      - native:build:all
-    cmds:
-      - cmake --install {{.BUILD_DIR}} --prefix {{.CLI_ARGS}}
-
-  # =============================================================================
-  # Native Clean Tasks
-  # =============================================================================
-
-  native:clean:
-    desc: Clean native build artifacts and application outputs
-    cmds:
-      - task: native:clean:build
-      - task: native:clean:app
-
-  native:clean:build:
-    desc: Clean native CMake build directory
-    cmds:
-      - rm -rf {{.BUILD_DIR}}
-
-  native:clean:app:
-    desc: Clean deployments/application/ output directory
-    ignore_error: true
-    cmds:
-      - rm -rf {{.APP_DIR}}
-
-  native:clean:all:
-    desc: Clean all native artifacts including dependencies
-    cmds:
-      - task: native:clean
-      - rm -rf {{.DEPENDS_DIR}}/cspice
-      - rm -rf {{.DEPENDS_DIR}}/wxWidgets
-      - rm -rf {{.DEPENDS_DIR}}/xerces
-    silent: false
-
-  clean:
-    desc: Clean all build artifacts (native, web, Docker, task runner cache)
-    cmds:
-      - task: native:clean
-      - task: web:clean:all
-      - task: container:clean
-      - rm -rf {{.DEPLOY_DIR}}/.task
-      - rm -f {{.SRC_APP_DIR}}/bin/GmatConsole.js* {{.SRC_APP_DIR}}/bin/GmatConsole.wasm {{.SRC_APP_DIR}}/bin/GmatConsole.data {{.SRC_APP_DIR}}/bin/GmatConsole.worker.js
-
-  native:info:
-    desc: Show native build configuration and status
-    cmds:
-      - |
-        echo "╔══════════════════════════════════════════════════════════════════╗"
-        echo "║              GMAT Native Build Configuration                     ║"
-        echo "╚══════════════════════════════════════════════════════════════════╝"
-        echo ""
-        echo "┌─ Directories ─────────────────────────────────────────────────────"
-        echo "│ Root:        {{.GIT_ROOT}}"
-        echo "│ Build:       {{.BUILD_DIR}}"
-        echo "│ Application: {{.APP_DIR}}"
-        echo "│ Dependencies: {{.DEPENDS_DIR}}"
-        echo ""
-        echo "┌─ Build Settings ──────────────────────────────────────────────────"
-        echo "│ Build Type:     {{.BUILD_TYPE}}"
-        echo "│ Parallel Jobs:  {{.PARALLEL_JOBS}}"
-        echo "│ Platform:       {{.OS}} / {{ARCH}}"
-        echo ""
-        echo "┌─ Package Manager Dependencies (Toolchain) ────────────────────────"
-        {{if eq .OS "darwin"}}
-        printf "│ wxWidgets:    "; brew list wxwidgets@3.2 >/dev/null 2>&1 && echo "✓ installed (brew)" || echo "✗ not installed"
-        printf "│ xerces-c:     "; brew list xerces-c >/dev/null 2>&1 && echo "✓ installed (brew)" || echo "✗ not installed"
-        printf "│ CSPICE:       "; brew list cspice >/dev/null 2>&1 && echo "✓ installed (brew)" || echo "✗ not installed"
-        printf "│ SWIG:         "; brew list swig >/dev/null 2>&1 && echo "✓ installed (brew)" || echo "✗ not installed"
-        {{else if eq .OS "linux"}}
-        printf "│ wxWidgets:    "; dpkg -l libwxgtk3.2-dev >/dev/null 2>&1 && echo "✓ installed (apt)" || echo "✗ not installed"
-        printf "│ xerces-c:     "; dpkg -l libxerces-c-dev >/dev/null 2>&1 && echo "✓ installed (apt)" || echo "✗ not installed"
-        printf "│ SWIG:         "; dpkg -l swig >/dev/null 2>&1 && echo "✓ installed (apt)" || echo "✗ not installed"
-        {{end}}
-        echo ""
-        echo "┌─ Source-Built Dependencies (depends/) ────────────────────────────"
-        printf "│ CSPICE:       "; test -d "{{.DEPENDS_DIR}}/cspice/macosx/cspice64/lib" && echo "✓ built" || echo "✗ not built"
-        printf "│ wxWidgets:    "; test -d "{{.DEPENDS_DIR}}/wxWidgets/lib" && echo "✓ built" || echo "✗ not built"
-        printf "│ xerces-c:     "; test -d "{{.DEPENDS_DIR}}/xerces/lib" && echo "✓ built" || echo "✗ not built"
-        printf "│ Symlink:      "; test -L "{{.DEPENDS_DIR}}/cspice/macosx/cspice64" && echo "✓ linked" || echo "- not linked"
-        echo ""
-        echo "┌─ SPK Ephemeris Data ──────────────────────────────────────────────"
-        printf "│ DE405AllPlanets.bsp: "; test -f "{{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE405AllPlanets.bsp" && echo "✓ present" || echo "✗ missing"
-        printf "│ DE421AllPlanets.bsp: "; test -f "{{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE421AllPlanets.bsp" && echo "✓ present" || echo "✗ missing"
-        printf "│ DE424AllPlanets.bsp: "; test -f "{{.SRC_APP_DIR}}/data/planetary_ephem/spk/DE424AllPlanets.bsp" && echo "✓ present" || echo "✗ missing"
-        echo ""
-        echo "┌─ Build Status ────────────────────────────────────────────────────"
-        if [ -f "{{.BUILD_DIR}}/CMakeCache.txt" ]; then
-          echo "│ CMake:        ✓ configured"
-          echo "│"
-          echo "│ CMake Options:"
-          grep -E "^(GMAT_INCLUDE_GUI|GMAT_INCLUDE_CSALT|GMAT_INCLUDE_API|CMAKE_BUILD_TYPE):" {{.BUILD_DIR}}/CMakeCache.txt 2>/dev/null | sed 's/^/│   /'
-        else
-          echo "│ CMake:        ✗ not configured (run 'task native:configure')"
-        fi
-        echo ""
-        echo "┌─ Application Binaries ────────────────────────────────────────────"
-        printf "│ GMAT (console): "; test -f "{{.APP_DIR}}/bin/GMAT" && echo "✓ built" || echo "✗ not built"
-        printf "│ GmatConsole:    "; test -f "{{.APP_DIR}}/bin/GmatConsole" && echo "✓ built" || echo "✗ not built"
-        {{if eq .OS "darwin"}}
-        printf "│ GMAT.app (GUI): "; test -d "{{.APP_DIR}}/bin/GMAT.app" && echo "✓ built" || echo "✗ not built"
-        {{else}}
-        printf "│ GMAT (GUI):     "; test -f "{{.APP_DIR}}/bin/GMAT-gui" && echo "✓ built" || echo "✗ not built"
-        {{end}}
-        echo ""
-        echo "┌─ Quick Commands ──────────────────────────────────────────────────"
-        echo "│ task native:install:deps     # Install via package manager"
-        echo "│ task native:download:src:deps # Build dependencies from source"
-        echo "│ task native:install:spk      # Download SPK ephemeris files"
-        echo "│ task native:configure        # Configure CMake"
-        echo "│ task native:build:all        # Build all GMAT components"
-        echo "│ task native:run:gui          # Run GMAT GUI"
-        echo "│ task native:run:console      # Run GMAT console"
-        echo "└───────────────────────────────────────────────────────────────────"
-
-  # =============================================================================
-  # Source Distribution Tasks
-  # =============================================================================
-
-  dist:src:
-    desc: Copy minimal source code needed to build GMAT into 'runnable/' folder
-    cmds:
-      - |
-        echo "Creating minimal source distribution..."
-        DIST_DIR="{{.GIT_ROOT}}/runnable"
-        SRC_DIR="{{.GIT_ROOT}}"
-        rm -rf "$DIST_DIR"
-        mkdir -p "$DIST_DIR"
-
-        # ===========================================
-        # 1. Root build files
-        # ===========================================
-        echo "[1/9] Copying root build files..."
-        cp "$SRC_DIR/CMakeLists.txt" "$DIST_DIR/"
-        cp "$SRC_DIR/License.txt" "$DIST_DIR/" 2>/dev/null || true
-        cp "$SRC_DIR/README.md" "$DIST_DIR/" 2>/dev/null || true
-        cp "$SRC_DIR/Taskfile.yaml" "$DIST_DIR/" 2>/dev/null || true
-        cp "$SRC_DIR/.gitignore" "$DIST_DIR/" 2>/dev/null || true
-
-        # ===========================================
-        # 2. Build system files (cmake modules, install scripts)
-        # ===========================================
-        echo "[2/9] Copying build system files..."
-        mkdir -p "$DIST_DIR/build/cmake_modules"
-        cp -r "$SRC_DIR/build/cmake_modules/"* "$DIST_DIR/build/cmake_modules/" 2>/dev/null || true
-        mkdir -p "$DIST_DIR/build/install"
-        cp "$SRC_DIR/build/install/CMakeLists.txt" "$DIST_DIR/build/install/" 2>/dev/null || true
-        cp "$SRC_DIR/build/install/CMake_INSTALL_Setup.cmake" "$DIST_DIR/build/install/" 2>/dev/null || true
-
-        # ===========================================
-        # 3. Source code (src/) - ALL source files
-        # ===========================================
-        echo "[3/9] Copying source code (src/)..."
-        mkdir -p "$DIST_DIR/src"
-        # Copy all source files, excluding compiled objects
-        rsync -a --exclude='*.o' --exclude='*.obj' --exclude='*.a' --exclude='*.lib' \
-              --exclude='*.dylib' --exclude='*.so' --exclude='*.dll' \
-              --exclude='CMakeFiles' --exclude='cmake_install.cmake' \
-              "$SRC_DIR/src/" "$DIST_DIR/src/"
-
-        # ===========================================
-        # 4. Plugins source code
-        # ===========================================
-        echo "[4/9] Copying plugins source code..."
-        mkdir -p "$DIST_DIR/plugins"
-        rsync -a --exclude='*.o' --exclude='*.obj' --exclude='*.a' --exclude='*.lib' \
-              --exclude='*.dylib' --exclude='*.so' --exclude='*.dll' \
-              --exclude='CMakeFiles' --exclude='cmake_install.cmake' \
-              "$SRC_DIR/plugins/" "$DIST_DIR/plugins/"
-
-        # ===========================================
-        # 5. Dependency configuration (not binaries)
-        # ===========================================
-        echo "[5/9] Copying dependency configuration..."
-        mkdir -p "$DIST_DIR/depends/CMakeModules"
-        cp "$SRC_DIR/depends/CMakeLists.txt" "$DIST_DIR/depends/"
-        cp "$SRC_DIR/depends/configure.py" "$DIST_DIR/depends/"
-        cp "$SRC_DIR/depends/.gitignore" "$DIST_DIR/depends/" 2>/dev/null || true
-        cp -r "$SRC_DIR/depends/CMakeModules/"* "$DIST_DIR/depends/CMakeModules/" 2>/dev/null || true
-        # Copy bin tools structure (needed for configure.py)
-        mkdir -p "$DIST_DIR/depends/bin"
-        cp -r "$SRC_DIR/depends/bin/"* "$DIST_DIR/depends/bin/" 2>/dev/null || true
-
-        # ===========================================
-        # 6. SWIG interface files (for API bindings)
-        # ===========================================
-        echo "[6/9] Copying SWIG interface files..."
-        if [ -d "$SRC_DIR/swig" ]; then
-          mkdir -p "$DIST_DIR/swig"
-          rsync -a --exclude='*.o' --exclude='*.obj' --exclude='CMakeFiles' \
-                "$SRC_DIR/swig/" "$DIST_DIR/swig/"
-        fi
-
-        # ===========================================
-        # 7. Application runtime data (required for execution)
-        # ===========================================
-        echo "[7/9] Copying runtime data files..."
-        APP_SRC="$SRC_DIR/application"
-        mkdir -p "$DIST_DIR/application/bin"
-        mkdir -p "$DIST_DIR/application/output"
-
-        # Copy config files from application/bin/
-        for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt GMAT.ini MacConfigure.txt; do
-          cp "$APP_SRC/bin/$f" "$DIST_DIR/application/bin/" 2>/dev/null || true
-        done
-
-        # Data files (ephemeris, gravity, atmosphere, etc.)
-        cp -r "$APP_SRC/data" "$DIST_DIR/application/"
-        # Samples
-        cp -r "$APP_SRC/samples" "$DIST_DIR/application/"
-        # Other runtime directories
-        cp -r "$APP_SRC/userfunctions" "$DIST_DIR/application/" 2>/dev/null || true
-        cp -r "$APP_SRC/userincludes" "$DIST_DIR/application/" 2>/dev/null || true
-        cp -r "$APP_SRC/extras" "$DIST_DIR/application/" 2>/dev/null || true
-        mkdir -p "$DIST_DIR/application/plugins"
-        mkdir -p "$DIST_DIR/application/debug"
-        # License and readme
-        cp "$APP_SRC/License.txt" "$DIST_DIR/application/" 2>/dev/null || true
-        cp "$APP_SRC/README.txt" "$DIST_DIR/application/" 2>/dev/null || true
-
-        # ===========================================
-        # 8. API interop (if exists)
-        # ===========================================
-        echo "[8/9] Copying API interop files..."
-        if [ -d "$SRC_DIR/api-interop" ]; then
-          cp -r "$SRC_DIR/api-interop" "$DIST_DIR/"
-        fi
-
-        # ===========================================
-        # 9. Summary
-        # ===========================================
-        echo "[9/9] Calculating size..."
-        echo ""
-        echo "=========================================="
-        echo "Minimal source distribution created at:"
-        echo "  $DIST_DIR"
-        echo ""
-        echo "Directory sizes:"
-        du -sh "$DIST_DIR/src" 2>/dev/null || true
-        du -sh "$DIST_DIR/plugins" 2>/dev/null || true
-        du -sh "$DIST_DIR/depends" 2>/dev/null || true
-        du -sh "$DIST_DIR/application" 2>/dev/null || true
-        du -sh "$DIST_DIR/swig" 2>/dev/null || true
-        echo "----------"
-        du -sh "$DIST_DIR"
-        echo ""
-        echo "EXCLUDED (not needed for build):"
-        echo "  - cmake-build/     (build cache)"
-        echo "  - .git/            (version history)"
-        echo "  - doc/             (documentation)"
-        echo "  - prototype/       (experimental code)"
-        echo "  - moredata/        (extra graphics)"
-        echo "  - Compiled binaries (*.dylib, *.so, *.dll)"
-        echo "  - Downloaded deps  (wxWidgets, cspice, xerces binaries)"
-        echo ""
-        echo "To build from this distribution:"
-        echo "  cd runnable"
-        echo "  task native:install:deps     # Install dependencies (auto-detects OS)"
-        echo "  task native:configure"
-        echo "  task native:build:all"
-
-  dist:src:clean:
-    desc: Remove the source distribution folder
-    cmds:
-      - rm -rf {{.GIT_ROOT}}/runnable
-      - echo "Removed runnable/ directory"
-
-  dist:src:info:
-    desc: Show what would be included/excluded in source distribution
-    cmds:
-      - |
-        echo "=== GMAT Minimal Source Distribution Contents ==="
-        echo ""
-        echo "INCLUDED (required to build):"
-        echo "  CMakeLists.txt          - Root build configuration"
-        echo "  build/cmake_modules/    - CMake helper modules"
-        echo "  build/install/          - Installation scripts"
-        echo "  src/                    - Core source code (~48 MB)"
-        echo "    src/base/             - Core library"
-        echo "    src/gui/              - GUI application"
-        echo "    src/console/          - Console application"
-        echo "    src/gmatutil/         - Utility library"
-        echo "    src/csalt/            - CSALT optimization"
-        echo "  plugins/                - Plugin source (~40 MB)"
-        echo "  depends/                - Dependency config (not binaries)"
-        echo "    configure.py          - Downloads CSPICE, etc."
-        echo "    CMakeLists.txt        - Dependency setup"
-        echo "  swig/                   - API binding interfaces"
-        echo "  application/data/           - Runtime data (~240 MB)"
-        echo "  application/bin/*.txt,*.ini - Config files only"
-        echo "  application/samples/        - Sample scripts"
-        echo ""
-        echo "EXCLUDED (not needed):"
-        echo "  cmake-build/            - Build cache (rebuild)"
-        echo "  .git/                   - Version history (~2.3 GB)"
-        echo "  doc/                    - Documentation (~661 MB)"
-        echo "  prototype/              - Experimental (~295 MB)"
-        echo "  moredata/               - Extra graphics (~176 MB)"
-        echo "  depends/wxWidgets/      - Use package manager instead"
-        echo "  depends/cspice/         - Use package manager instead"
-        echo "  depends/xerces/         - Use package manager instead"
-        echo "  *.dylib, *.so, *.dll    - Compiled libraries"
-        echo "  *.o, *.obj, *.a         - Object files"
-        echo ""
-        echo "Estimated size: ~350 MB (vs ~4.8 GB full)"
-
+        echo "Utility:"
+        echo "  task check:x11        Verify X11 server is running"
+        echo "  task help             Show this help"
