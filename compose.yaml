@@ -6,7 +6,7 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: wasm
-    image: ${CONTAINER_IMAGE:-gmat-builder}:${CONTAINER_TAG:-latest}
+    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/web:${CONTAINER_TAG:-latest}
     hostname: gmat-web
     container_name: gmat-web
     ports:
@@ -30,7 +30,7 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: native-gui
-    image: gmat-native-gui:${CONTAINER_TAG:-latest}
+    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/x11:${CONTAINER_TAG:-latest}
     hostname: gmat-x11
     container_name: gmat-x11
     environment:

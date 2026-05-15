@@ -16,6 +16,8 @@ silent: true
 vars:
   CONTAINER_BIN: docker
   OS: '{{OS}}'
+  REGISTRY_BASE: ghcr.io/haisamido/gmat-ui
+  REGISTRY_GITLAB: registry.gitlab.com/spacecompute.io/gmat-ui
   GMAT_WEB_HOST_PORT: '8989'
   GMAT_DISPLAY: 'host.docker.internal:0'
   # Colors
@@ -69,7 +71,7 @@ tasks:
     deps:
       - down:web
     cmds:
-      - "{{.CONTAINER_BIN}} rmi gmat-builder:latest 2>/dev/null || true"
+      - "{{.CONTAINER_BIN}} rmi {{.REGISTRY_BASE}}/web:latest 2>/dev/null || true"
 
   # ===========================================================================
   # X11 service
@@ -118,7 +120,7 @@ tasks:
     deps:
       - down:x11
     cmds:
-      - "{{.CONTAINER_BIN}} rmi gmat-native-gui:latest 2>/dev/null || true"
+      - "{{.CONTAINER_BIN}} rmi {{.REGISTRY_BASE}}/x11:latest 2>/dev/null || true"
 
   # ===========================================================================
   # All services
@@ -223,7 +225,6 @@ tasks:
         echo "=== GMAT Container Tasks ==="
         echo ""
         echo "Per-service (replace 'web' with 'x11' for native GUI):"
-        echo "  task pull:web         Pull pre-built image"
         echo "  task build:web        Build image"
         echo "  task rebuild:web      Rebuild image (no cache)"
         echo "  task up:web           Start service  (aliases: start:web, run:web)"

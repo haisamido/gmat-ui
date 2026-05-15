@@ -3,20 +3,20 @@
 #
 # Usage (run from deployments/):
 #   # Build the default (combined) image:
-#   docker build -f Containerfile -t gmat-builder .
+#   docker build -f Containerfile -t ghcr.io/haisamido/gmat-ui/web .
 #
 #   # Build specific targets:
-#   docker build -f Containerfile --target native -t gmat-native .
-#   docker build -f Containerfile --target wasm-builder -t gmat-wasm .
-#   docker build -f Containerfile --target wasm -t gmat-wasm-runtime .
+#   docker build -f Containerfile --target native -t ghcr.io/haisamido/gmat-ui/native .
+#   docker build -f Containerfile --target wasm-builder -t ghcr.io/haisamido/gmat-ui/wasm-builder .
+#   docker build -f Containerfile --target wasm -t ghcr.io/haisamido/gmat-ui/web .
 #
 #   # Run native console:
-#   docker run -it gmat-builder native
-#   docker run -it gmat-native
+#   docker run -it ghcr.io/haisamido/gmat-ui/x11 native
+#   docker run -it ghcr.io/haisamido/gmat-ui/native
 #
 #   # Run WASM server:
-#   docker run -p 8989:8989 gmat-builder wasm
-#   docker run -p 8989:8989 gmat-wasm-runtime
+#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/web wasm
+#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/web
 #
 #   # Task integration (from deployments/):
 #   task build                   # Build all images
