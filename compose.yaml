@@ -11,8 +11,6 @@ services:
     container_name: gmat-web
     ports:
       - "${SERVICE_HOST_PORT:-8989}:${SERVICE_PORT:-8989}"
-    volumes:
-      - ../application/samples:/gmat/application/samples:ro
     environment:
       - PORT=${SERVICE_PORT:-8989}
       - GMAT_WEB_HOST=${GMAT_WEB_HOST:-localhost}
@@ -41,7 +39,6 @@ services:
       - LIBGL_ALWAYS_SOFTWARE=1
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
-      - ../application/samples:/gmat/application/samples:ro
     healthcheck:
       test: ["CMD-SHELL", "pidof GMAT || exit 1"]
       interval: 30s
