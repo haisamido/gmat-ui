@@ -16,6 +16,13 @@ silent: true
 vars:
   CONTAINER_BIN: docker
   OS: '{{OS}}'
+  GMAT_WEB_HOST_PORT: '8989'
+  GMAT_DISPLAY: 'host.docker.internal:0'
+  # Colors
+  GREEN: '\033[0;32m'
+  YELLOW: '\033[0;33m'
+  BLUE: '\033[0;34m'
+  RESET: '\033[0m'
 
 tasks:
   default:
@@ -43,6 +50,7 @@ tasks:
       - run:web
     cmds:
       - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-web"
+      - task: message:web
 
   down:web:
     desc: Stop the gmat-web service
@@ -91,6 +99,7 @@ tasks:
           xhost +local:docker
         fi
       - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-x11"
+      - task: message:x11
 
   down:x11:
     desc: Stop the gmat-x11 service
@@ -139,6 +148,7 @@ tasks:
           xhost +local:docker
         fi
       - "{{.CONTAINER_BIN}} compose up -d --remove-orphans"
+      - task: message
 
   down:
     desc: Stop all services
@@ -152,9 +162,32 @@ tasks:
     cmds:
       - "{{.CONTAINER_BIN}} compose down --rmi all --volumes --remove-orphans"
 
+  message:
+    desc: Display connection info for all services
+    silent: true
+    cmds:
+      - task: message:web
+      - task: message:x11
+
   # ===========================================================================
   # Utility
   # ===========================================================================
+  message:web:
+    desc: Display gmat-web connection info
+    silent: true
+    cmds:
+      - 'printf "\n{{.GREEN}}GMAT Web UI{{.RESET}} available via:      {{.YELLOW}}http://localhost:{{.GMAT_WEB_HOST_PORT}}{{.RESET}}/ui/ ({{.BLUE}}<-- note the port{{.RESET}})\n"'
+      - 'printf "  View logs via:          {{.GREEN}}task logs:web{{.RESET}}\n"'
+      - 'printf "  Stop via:               {{.GREEN}}task down:web{{.RESET}}\n\n"'
+
+  message:x11:
+    desc: Display gmat-x11 display info
+    silent: true
+    cmds:
+      - 'printf "\n{{.GREEN}}GMAT Native GUI{{.RESET}} rendering via X11 display: {{.YELLOW}}{{.GMAT_DISPLAY}}{{.RESET}}\n"'
+      - 'printf "  View logs via:          {{.GREEN}}task logs:x11{{.RESET}}\n"'
+      - 'printf "  Stop via:               {{.GREEN}}task down:x11{{.RESET}}\n\n"'
+
   check:x11:
     desc: Check that X11 server is running on the host
     cmds:
@@ -204,7 +237,10 @@ tasks:
         echo "  task up               Start all services  (aliases: start, run)"
         echo "  task down             Stop all services   (aliases: stop)"
         echo "  task clean            Remove all containers, images, and networks"
+        echo "  task message          Show connection info for all services"
         echo ""
         echo "Utility:"
         echo "  task check:x11        Verify X11 server is running"
+        echo "  task message:web      Show gmat-web connection info"
+        echo "  task message:x11      Show gmat-x11 display info"
         echo "  task help             Show this help"
