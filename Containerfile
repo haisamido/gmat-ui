@@ -6,11 +6,11 @@
 #   wasm   - Browser-based GMAT (node:20-slim, port 8989)
 #
 # Usage:
-#   docker build -f Containerfile --target native -t gmat-native .
+#   docker build -f Containerfile --target native -t gmat-x11 .
 #   docker build -f Containerfile --target wasm -t gmat-web .
 #
-#   docker run -it gmat-native                # Console
-#   docker run -it gmat-native ./GMAT         # GUI (requires X11)
+#   docker run -it gmat-x11                # Console
+#   docker run -it gmat-x11 ./GMAT         # GUI (requires X11)
 #   docker run -p 8989:8989 gmat-web          # Web UI
 #
 # Task integration:

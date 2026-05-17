@@ -24,7 +24,7 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: native
-    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-native:${CONTAINER_TAG:-latest}
+    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-x11:${CONTAINER_TAG:-latest}
     hostname: gmat-x11
     container_name: gmat-x11
     command: ["./GMAT"]
@@ -50,7 +50,7 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: native
-    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-native:${CONTAINER_TAG:-latest}
+    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-x11:${CONTAINER_TAG:-latest}
     hostname: gmat-console
     container_name: gmat-console
     networks:
