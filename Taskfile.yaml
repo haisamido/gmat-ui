@@ -43,7 +43,7 @@ tasks:
       - start:web
       - run:web
     cmds:
-      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans gmat-web"
+      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-web"
 
   down:web:
     desc: Stop the gmat-web service
@@ -91,7 +91,7 @@ tasks:
         else
           xhost +local:docker
         fi
-      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans gmat-x11"
+      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-x11"
 
   down:x11:
     desc: Stop the gmat-x11 service
@@ -142,7 +142,7 @@ tasks:
         else
           xhost +local:docker
         fi
-      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans"
+      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans"
 
   down:
     desc: Stop all services

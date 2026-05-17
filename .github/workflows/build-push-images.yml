@@ -5,15 +5,15 @@
 #   native     - Console GMAT (ubuntu:26.04)
 #   native-gui - X11 GUI GMAT (ubuntu:26.04)
 #
-# Images are tagged as:
-#   ghcr.io/haisamido/gmat-nasa:{web,console,x11}-<branch>  (always)
-#   ghcr.io/haisamido/gmat-nasa:{web,console,x11}          (main branch only)
+# Images are pushed as:
+#   ghcr.io/haisamido/gmat-ui/gmat-{web,console,x11}:<branch>  (always)
+#   ghcr.io/haisamido/gmat-ui/gmat-{web,console,x11}:latest    (main branch only)
 #
 # Usage:
-#   docker pull ghcr.io/haisamido/gmat-nasa:web
-#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-nasa:web
-#   docker run -it ghcr.io/haisamido/gmat-nasa:console
-#   docker run -it ghcr.io/haisamido/gmat-nasa:x11
+#   docker pull ghcr.io/haisamido/gmat-ui/gmat-web:latest
+#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/gmat-web:latest
+#   docker run -it ghcr.io/haisamido/gmat-ui/gmat-console:latest
+#   docker run -it ghcr.io/haisamido/gmat-ui/gmat-x11:latest
 #
 # To enable arm64: uncomment the arm64 matrix entries below and the
 # manifest job, then switch the build job to push-by-digest mode.
@@ -43,22 +43,22 @@ jobs:
       matrix:
         include:
           - target: wasm
-            suffix: web
+            image_name: gmat-web
           - target: native
-            suffix: console
+            image_name: gmat-console
           - target: native-gui
-            suffix: x11
+            image_name: gmat-x11
           # --- arm64 (uncomment to enable multi-arch) ---
           # - target: wasm
-          #   suffix: web
+          #   image_name: gmat-web
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
           # - target: native
-          #   suffix: console
+          #   image_name: gmat-console
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
           # - target: native-gui
-          #   suffix: x11
+          #   image_name: gmat-x11
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
 
@@ -86,10 +86,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image_name }}
           tags: |
-            type=raw,value=${{ matrix.suffix }}-${{ github.ref_name }}
-            type=raw,value=${{ matrix.suffix }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ github.ref_name }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       # Push builds: tag, push to GHCR
       - name: Build and push
@@ -136,15 +136,15 @@ jobs:
   #     fail-fast: false
   #     matrix:
   #       include:
-  #         - suffix: web
-  #         - suffix: console
-  #         - suffix: x11
+  #         - image_name: gmat-web
+  #         - image_name: gmat-console
+  #         - image_name: gmat-x11
   #   steps:
   #     - name: Download digests
   #       uses: actions/download-artifact@v4
   #       with:
   #         path: /tmp/digests
-  #         pattern: digest-${{ matrix.suffix }}-*
+  #         pattern: digest-${{ matrix.image_name }}-*
   #         merge-multiple: true
   #     - name: Set up Docker Buildx
   #       uses: docker/setup-buildx-action@v3
@@ -157,9 +157,9 @@ jobs:
   #     - name: Create manifest list and push
   #       working-directory: /tmp/digests
   #       run: |
-  #         tags=("-t" "${{ env.REGISTRY }}/${{ github.repository }}:${{ matrix.suffix }}-${{ github.ref_name }}")
+  #         tags=("-t" "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image_name }}:${{ github.ref_name }}")
   #         if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-  #           tags+=("-t" "${{ env.REGISTRY }}/${{ github.repository }}:${{ matrix.suffix }}")
+  #           tags+=("-t" "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image_name }}:latest")
   #         fi
-  #         digests=$(printf "${{ env.REGISTRY }}/${{ github.repository }}@sha256:%s " *)
+  #         digests=$(printf "${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image_name }}@sha256:%s " *)
   #         docker buildx imagetools create "${tags[@]}" $digests
