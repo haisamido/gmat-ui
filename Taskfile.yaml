@@ -3,8 +3,9 @@
 #
 # Usage:
 #   task --list          # List all available tasks
-#   task up:web          # Build and start the web UI
-#   task up:x11          # Build and start the native GUI (X11)
+#   task up:web          # Start the web UI
+#   task up:x11          # Start the native GUI (X11)
+#   task up:console      # Start the native console
 #   task logs:web        # Follow web UI logs
 #   task down:web        # Stop the web UI
 #   task help            # Show detailed help
@@ -16,7 +17,6 @@ silent: true
 vars:
   CONTAINER_BIN: docker
   DOCKER_SOCK: '{{.DOCKER_HOST | default (printf "unix://%s/.docker/run/docker.sock" .HOME)}}'
-  OS: '{{OS}}'
 
 tasks:
   default:
@@ -62,18 +62,18 @@ tasks:
     deps:
       - down:web
     cmds:
-      - "{{.CONTAINER_BIN}} rmi gmat-builder:latest 2>/dev/null || true"
+      - "{{.CONTAINER_BIN}} compose down --rmi local gmat-web 2>/dev/null || true"
 
   # ===========================================================================
-  # X11 service
+  # X11 service (native GUI via X11 forwarding)
   # ===========================================================================
   build:x11:
-    desc: Build the gmat-x11 image
+    desc: Build the gmat-native image (shared with console)
     cmds:
       - "{{.CONTAINER_BIN}} compose build gmat-x11"
 
   rebuild:x11:
-    desc: Rebuild the gmat-x11 image (no cache)
+    desc: Rebuild the gmat-native image (no cache)
     cmds:
       - "{{.CONTAINER_BIN}} compose build --no-cache gmat-x11"
 
@@ -110,7 +110,47 @@ tasks:
     deps:
       - down:x11
     cmds:
-      - "{{.CONTAINER_BIN}} rmi gmat-native-gui:latest 2>/dev/null || true"
+      - "{{.CONTAINER_BIN}} compose down --rmi local gmat-x11 2>/dev/null || true"
+
+  # ===========================================================================
+  # Console service (native headless)
+  # ===========================================================================
+  build:console:
+    desc: Build the gmat-native image (shared with x11)
+    cmds:
+      - "{{.CONTAINER_BIN}} compose --profile console build gmat-console"
+
+  rebuild:console:
+    desc: Rebuild the gmat-native image (no cache)
+    cmds:
+      - "{{.CONTAINER_BIN}} compose --profile console build --no-cache gmat-console"
+
+  up:console:
+    desc: Start the gmat-console service
+    aliases:
+      - start:console
+      - run:console
+    cmds:
+      - "{{.CONTAINER_BIN}} compose --profile console up -d --remove-orphans gmat-console"
+
+  down:console:
+    desc: Stop the gmat-console service
+    aliases:
+      - stop:console
+    cmds:
+      - "{{.CONTAINER_BIN}} compose --profile console rm -fs gmat-console"
+
+  logs:console:
+    desc: Follow gmat-console logs
+    cmds:
+      - "{{.CONTAINER_BIN}} compose --profile console logs -f gmat-console"
+
+  clean:console:
+    desc: Remove gmat-console container and image
+    deps:
+      - down:console
+    cmds:
+      - "{{.CONTAINER_BIN}} compose --profile console down --rmi local gmat-console 2>/dev/null || true"
 
   # ===========================================================================
   # All services
@@ -173,19 +213,12 @@ tasks:
     cmds:
       - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:wasm
 
-  ci:console:
-    desc: Run CI build for console target locally
+  ci:native:
+    desc: Run CI build for native target locally
     env:
       DOCKER_HOST: '{{.DOCKER_SOCK}}'
     cmds:
       - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:native
-
-  ci:x11:
-    desc: Run CI build for x11 target locally
-    env:
-      DOCKER_HOST: '{{.DOCKER_SOCK}}'
-    cmds:
-      - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:native-gui
 
   # ===========================================================================
   # Utility
@@ -225,8 +258,7 @@ tasks:
       - |
         echo "=== GMAT Container Tasks ==="
         echo ""
-        echo "Per-service (replace 'web' with 'x11' for native GUI):"
-        echo "  task pull:web         Pull pre-built image"
+        echo "Per-service (replace 'web' with 'x11' or 'console'):"
         echo "  task build:web        Build image"
         echo "  task rebuild:web      Rebuild image (no cache)"
         echo "  task up:web           Start service  (aliases: start:web, run:web)"
@@ -240,6 +272,11 @@ tasks:
         echo "  task up               Start all services  (aliases: start, run)"
         echo "  task down             Stop all services   (aliases: stop)"
         echo "  task clean            Remove all containers, images, and networks"
+        echo ""
+        echo "CI (local testing with act):"
+        echo "  task ci:web           Run CI for web target"
+        echo "  task ci:native        Run CI for native target"
+        echo "  task ci:dry-run       Dry-run all CI builds"
         echo ""
         echo "Utility:"
         echo "  task check:x11        Verify X11 server is running"

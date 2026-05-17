@@ -1,27 +1,23 @@
 # GMAT Multi-Target Build Container
 # Builds NASA's General Mission Analysis Tool for Native Linux and WebAssembly
 #
-# Usage (run from deployments/):
-#   # Build the default (combined) image:
-#   docker build -f Containerfile -t ghcr.io/haisamido/gmat-ui/web .
+# Two build targets:
+#   native - Console + GUI GMAT (ubuntu:26.04, both GmatConsole and GMAT binaries)
+#   wasm   - Browser-based GMAT (node:20-slim, port 8989)
 #
-#   # Build specific targets:
-#   docker build -f Containerfile --target native -t ghcr.io/haisamido/gmat-ui/native .
-#   docker build -f Containerfile --target wasm-builder -t ghcr.io/haisamido/gmat-ui/wasm-builder .
-#   docker build -f Containerfile --target wasm -t ghcr.io/haisamido/gmat-ui/web .
+# Usage:
+#   docker build -f Containerfile --target native -t gmat-native .
+#   docker build -f Containerfile --target wasm -t gmat-web .
 #
-#   # Run native console:
-#   docker run -it ghcr.io/haisamido/gmat-ui/x11 native
-#   docker run -it ghcr.io/haisamido/gmat-ui/native
+#   docker run -it gmat-native                # Console
+#   docker run -it gmat-native ./GMAT         # GUI (requires X11)
+#   docker run -p 8989:8989 gmat-web          # Web UI
 #
-#   # Run WASM server:
-#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/web wasm
-#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/web
-#
-#   # Task integration (from deployments/):
+# Task integration:
 #   task build                   # Build all images
 #   task up:web                  # Start the web UI
 #   task up:x11                  # Start native GUI (X11)
+#   task up:console              # Start native console
 
 # =============================================================================
 # Stage 1: Base image with common dependencies
@@ -199,13 +195,6 @@ RUN mv /gmat/deployments/application /app
 
 WORKDIR /app/bin
 CMD ["./GmatConsole"]
-
-# =============================================================================
-# Stage 3b: Native Linux GUI (same build, different default command)
-# =============================================================================
-FROM native AS native-gui
-
-CMD ["./GMAT"]
 
 # =============================================================================
 # Stage 4: WebAssembly build
