@@ -15,16 +15,8 @@ silent: true
 
 vars:
   CONTAINER_BIN: docker
+  DOCKER_SOCK: '{{.DOCKER_HOST | default (printf "unix://%s/.docker/run/docker.sock" .HOME)}}'
   OS: '{{OS}}'
-  REGISTRY_BASE: ghcr.io/haisamido/gmat-ui
-  REGISTRY_GITLAB: registry.gitlab.com/spacecompute.io/gmat-ui
-  GMAT_WEB_HOST_PORT: '8989'
-  GMAT_DISPLAY: 'host.docker.internal:0'
-  # Colors
-  GREEN: '\033[0;32m'
-  YELLOW: '\033[0;33m'
-  BLUE: '\033[0;34m'
-  RESET: '\033[0m'
 
 tasks:
   default:
@@ -51,8 +43,7 @@ tasks:
       - start:web
       - run:web
     cmds:
-      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-web"
-      - task: message:web
+      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans gmat-web"
 
   down:web:
     desc: Stop the gmat-web service
@@ -71,7 +62,7 @@ tasks:
     deps:
       - down:web
     cmds:
-      - "{{.CONTAINER_BIN}} rmi {{.REGISTRY_BASE}}/web:latest 2>/dev/null || true"
+      - "{{.CONTAINER_BIN}} rmi gmat-builder:latest 2>/dev/null || true"
 
   # ===========================================================================
   # X11 service
@@ -100,8 +91,7 @@ tasks:
         else
           xhost +local:docker
         fi
-      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-x11"
-      - task: message:x11
+      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans gmat-x11"
 
   down:x11:
     desc: Stop the gmat-x11 service
@@ -120,27 +110,30 @@ tasks:
     deps:
       - down:x11
     cmds:
-      - "{{.CONTAINER_BIN}} rmi {{.REGISTRY_BASE}}/x11:latest 2>/dev/null || true"
+      - "{{.CONTAINER_BIN}} rmi gmat-native-gui:latest 2>/dev/null || true"
 
   # ===========================================================================
   # All services
   # ===========================================================================
+
   build:
     desc: Build all images
-    cmds:
-      - "{{.CONTAINER_BIN}} compose build"
+    deps:
+      - build:web
+      - build:x11
 
   rebuild:
     desc: Rebuild all images (no cache)
-    cmds:
-      - "{{.CONTAINER_BIN}} compose build --no-cache"
-      
+    deps:
+      - rebuild:web
+      - rebuild:x11
+
   up:
     desc: Start all services
-    aliases: 
+    aliases:
       - start
       - run
-    deps: 
+    deps:
       - check:x11
     cmds:
       - |
@@ -149,8 +142,7 @@ tasks:
         else
           xhost +local:docker
         fi
-      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans"
-      - task: message
+      - "{{.CONTAINER_BIN}} compose up -d --build --remove-orphans"
 
   down:
     desc: Stop all services
@@ -164,31 +156,40 @@ tasks:
     cmds:
       - "{{.CONTAINER_BIN}} compose down --rmi all --volumes --remove-orphans"
 
-  message:
-    desc: Display connection info for all services
-    silent: true
+  # ===========================================================================
+  # CI (test GitHub Actions locally with act)
+  # ===========================================================================
+  ci:dry-run:
+    desc: Run all CI builds locally (dry-run)
+    env:
+      DOCKER_HOST: '{{.DOCKER_SOCK}}'
     cmds:
-      - task: message:web
-      - task: message:x11
+      - act -n --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} pull_request
+
+  ci:web:
+    desc: Run CI build for web target locally
+    env:
+      DOCKER_HOST: '{{.DOCKER_SOCK}}'
+    cmds:
+      - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:wasm
+
+  ci:console:
+    desc: Run CI build for console target locally
+    env:
+      DOCKER_HOST: '{{.DOCKER_SOCK}}'
+    cmds:
+      - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:native
+
+  ci:x11:
+    desc: Run CI build for x11 target locally
+    env:
+      DOCKER_HOST: '{{.DOCKER_SOCK}}'
+    cmds:
+      - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:native-gui
 
   # ===========================================================================
   # Utility
   # ===========================================================================
-  message:web:
-    desc: Display gmat-web connection info
-    silent: true
-    cmds:
-      - 'printf "\n{{.GREEN}}GMAT Web UI{{.RESET}} available via:      {{.YELLOW}}http://localhost:{{.GMAT_WEB_HOST_PORT}}{{.RESET}}/ui/ ({{.BLUE}}<-- note the port{{.RESET}})\n"'
-      - 'printf "  View logs via:          {{.GREEN}}task logs:web{{.RESET}}\n"'
-      - 'printf "  Stop via:               {{.GREEN}}task down:web{{.RESET}}\n\n"'
-
-  message:x11:
-    desc: Display gmat-x11 display info
-    silent: true
-    cmds:
-      - 'printf "\n{{.GREEN}}GMAT Native GUI{{.RESET}} rendering via X11 display: {{.YELLOW}}{{.GMAT_DISPLAY}}{{.RESET}}\n"'
-      - 'printf "  View logs via:          {{.GREEN}}task logs:x11{{.RESET}}\n"'
-      - 'printf "  Stop via:               {{.GREEN}}task down:x11{{.RESET}}\n\n"'
 
   check:x11:
     desc: Check that X11 server is running on the host
@@ -225,6 +226,7 @@ tasks:
         echo "=== GMAT Container Tasks ==="
         echo ""
         echo "Per-service (replace 'web' with 'x11' for native GUI):"
+        echo "  task pull:web         Pull pre-built image"
         echo "  task build:web        Build image"
         echo "  task rebuild:web      Rebuild image (no cache)"
         echo "  task up:web           Start service  (aliases: start:web, run:web)"
@@ -238,10 +240,7 @@ tasks:
         echo "  task up               Start all services  (aliases: start, run)"
         echo "  task down             Stop all services   (aliases: stop)"
         echo "  task clean            Remove all containers, images, and networks"
-        echo "  task message          Show connection info for all services"
         echo ""
         echo "Utility:"
         echo "  task check:x11        Verify X11 server is running"
-        echo "  task message:web      Show gmat-web connection info"
-        echo "  task message:x11      Show gmat-x11 display info"
         echo "  task help             Show this help"
