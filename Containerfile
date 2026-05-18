@@ -29,17 +29,17 @@
 FROM ubuntu:26.04 AS base
 
 #--- PROXY CONFIG (if needed)
-# ARG MAVEN_HTTPS_PROXY
-# ARG HTTPS_PROXY
-# ARG HTTP_PROXY
-# ARG NO_PROXY
-# ARG DEPLOYMENT_ENVIRO
+ARG MAVEN_HTTPS_PROXY
+ARG HTTPS_PROXY
+ARG HTTP_PROXY
+ARG NO_PROXY
+ARG DEPLOYMENT_ENVIRO
 
-# ENV MAVEN_HTTPS_PROXY=${MAVEN_HTTPS_PROXY}
-# ENV HTTPS_PROXY=${HTTPS_PROXY}
-# ENV HTTP_PROXY=${HTTP_PROXY}
-# ENV NO_PROXY=${NO_PROXY}
-# ENV DEPLOYMENT_ENVIRO=${DEPLOYMENT_ENVIRO}
+ENV MAVEN_HTTPS_PROXY=${MAVEN_HTTPS_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV NO_PROXY=${NO_PROXY}
+ENV DEPLOYMENT_ENVIRO=${DEPLOYMENT_ENVIRO}
 
 LABEL maintainer="haisamido"
 LABEL description="GMAT Multi-Target Build Container (Native + VNC + WebAssembly)"
@@ -71,11 +71,21 @@ RUN apt-get update && apt-get install -y \
     freeglut3-dev \
     # OpenSceneGraph (for OpenFrames 3D visualization)
     libopenscenegraph-dev \
+    # OSG runtime plugins (JPEG/PNG/FreeType readers for OpenFrames textures and fonts)
+    openscenegraph \
+    # Liberation fonts (Arial-compatible substitute for OpenFrames labels)
+    fonts-liberation \
     # Python (for PythonInterface plugin)
     python3-dev \
     # SWIG (for API bindings)
     swig \
     && rm -rf /var/lib/apt/lists/*
+
+# Symlink Liberation fonts as Microsoft font names (OpenFrames expects Arial + Courier Bold)
+RUN ln -s /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf \
+    /usr/share/fonts/truetype/liberation/arial.ttf && \
+    ln -s /usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf \
+    /usr/share/fonts/truetype/liberation/courbd.ttf
 
 # Install Task (go-task) build automation tool
 RUN curl -sL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin
@@ -213,13 +223,15 @@ RUN mkdir -p application/bin application/output application/plugins && \
     rm -rf application/docs && \
         ln -s /gmat/application/docs application/docs
 
-# Remove references to plugins that weren't built (proprietary, MATLAB)
-# to prevent buffer overflows from failed plugin loads
+# Remove references to plugins that weren't built (proprietary, MATLAB,
+# non-matching Python versions) to prevent errors from failed plugin loads
 RUN cd application/bin && \
     for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt; do \
       if [ -f "$f" ]; then \
         sed -i '/libMatlabInterface/d; /libFminconOptimizer/d' "$f" && \
-        sed -i '/proprietary\//d' "$f"; \
+        sed -i '/proprietary\//d' "$f" && \
+        sed -i '/libPythonInterface_py3[0-9]/{/libPythonInterface_py314/!d}' "$f" && \
+        sed -i '/libExternalForceModel_py3[0-9]/{/libExternalForceModel_py314/!d}' "$f"; \
       fi; \
     done
 
@@ -236,11 +248,15 @@ RUN ls -la application/bin/ && \
 # Copy OpenFrames shared libraries to the application plugins directory
 RUN cp /opt/openframes/install/lib/lib*.so* application/plugins/ 2>/dev/null || true
 
+# Create help directory (GMAT GUI expects ../docs/help/ to exist)
+RUN mkdir -p application/docs/help
+
 # Move to short path to avoid GMAT buffer overflow on long paths
 RUN mv /gmat/deployments/application /app
 
 ENV LD_LIBRARY_PATH=/app/plugins:${LD_LIBRARY_PATH}
-ENV OSG_FILE_PATH=/app/data
+ENV OSG_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+ENV OSG_FILE_PATH=/app/data:/usr/share/fonts/truetype/liberation
 
 WORKDIR /app/bin
 CMD ["./GmatConsole"]
@@ -257,6 +273,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fluxbox \
     feh \
     openssl \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Install TurboVNC
@@ -270,6 +287,18 @@ RUN git clone --depth 1 https://github.com/novnc/noVNC.git /usr/share/novnc && \
     pip3 install --break-system-packages websockify && \
     sed -i "s/UI.initSetting('resize', 'off')/UI.initSetting('resize', 'remote')/" /usr/share/novnc/app/ui.js
 
+# Create gmat user with sudo access
+RUN useradd -m -s /bin/bash -G sudo gmat && \
+    echo "gmat ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/gmat && \
+    chmod 0440 /etc/sudoers.d/gmat
+
+# Give gmat user ownership of the application directory
+RUN chown -R gmat:gmat /app
+
+# Switch to gmat user for all remaining setup
+USER gmat
+ENV HOME=/home/gmat
+
 # VNC password setup
 ARG VNC_PASSWORD=gmat
 ENV VNC_PASSWORD=${VNC_PASSWORD}
@@ -282,11 +311,14 @@ RUN openssl req -x509 -nodes -newkey rsa:2048 \
     -keyout ~/novnc.pem -out ~/novnc.pem -days 3650 \
     -subj "/C=US/ST=MD/L=Greenbelt/O=GMAT/CN=localhost"
 
-# Fluxbox config
+# Fluxbox config (override default ubuntu-light.png wallpaper)
 RUN mkdir -p ~/.fluxbox && \
     echo "session.screen0.rootCommand: xsetroot -solid '#1a1a2e'" > ~/.fluxbox/init && \
+    echo "session.screen0.rootCommand: xsetroot -solid '#1a1a2e'" > ~/.fluxbox/overlay && \
     cat <<'MENU_EOF' > ~/.fluxbox/menu
 [begin] (GMAT)
+  [exec] (Chromium) {chromium --no-sandbox}
+  [exec] (Firefox) {firefox}
   [exec] (GMAT) {cd /app/bin && ./GMAT} </app/data/graphics/icons/GMATLinux48.xpm>
   [exec] (xterm) {xterm}
   [separator]
@@ -307,21 +339,47 @@ Terminal=false
 DESKTOP_EOF
 RUN chmod +x ~/Desktop/GMAT.desktop
 
-# Startup script
+# Startup script (runs as gmat user; uses sudo for privileged port 80)
+USER root
 RUN cat <<'ENTRYPOINT_EOF' > /entrypoint.sh
 #!/bin/bash
 
-/opt/TurboVNC/bin/vncserver -securitytypes tlsnone,x509none,none && \
-  python3 -m websockify -D \
-    --web=/usr/share/novnc/ \
-    --cert=~/novnc.pem 80 localhost:5901
+# Suppress Glycin sandbox warning (bubblewrap unavailable in containers)
+export GLYCIN_SANDBOX=false
 
+# Suppress GTK/pixman warnings from software renderer (cosmetic, no functional impact)
+export GDK_BACKEND=x11
+export MESA_LOG_LEVEL=error
+
+# Start VNC server
+/opt/TurboVNC/bin/vncserver -geometry 1920x1080 -securitytypes tlsnone,x509none,none
+
+# Start websockify (sudo for privileged port 80)
+sudo python3 -m websockify -D \
+    --web=/usr/share/novnc/ \
+    --cert=$HOME/novnc.pem 80 localhost:5901
+
+# Set up environment for GUI applications
+export DISPLAY=:1
+export LD_LIBRARY_PATH=/app/plugins:${LD_LIBRARY_PATH}
+export OSG_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+export OSG_FILE_PATH=/app/data:/usr/share/fonts/truetype/liberation
+
+# Launch applications
 xterm &
-cd /app/bin && ./GMAT &
+cd /app/bin && ./GMAT 2>&1 | grep -v -E 'Glycin|pixman_region|_pixman_log_error|Gtk-CRITICAL.*width' &
 
 tail -f /dev/null
 ENTRYPOINT_EOF
 RUN chmod +x /entrypoint.sh
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        chromium firefox && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+USER gmat
 
 EXPOSE 80
 
