@@ -404,7 +404,7 @@ CMD ["node", "web/server.js"]
 # =============================================================================
 # Stage 5: Minimal WASM runtime image (just the built artifacts)
 # =============================================================================
-FROM node:20-slim AS wasm
+FROM node:24-slim AS wasm
 
 LABEL description="GMAT WebAssembly Runtime"
 
