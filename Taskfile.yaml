@@ -4,6 +4,7 @@
 # Usage:
 #   task --list          # List all available tasks
 #   task up:web          # Start the web UI
+#   task up:vnc          # Start VNC GUI (browser)
 #   task up:x11          # Start the native GUI (X11)
 #   task up:console      # Start the native console
 #   task logs:web        # Follow web UI logs
@@ -238,12 +239,14 @@ tasks:
     deps:
       - build:web
       - build:x11
+      - build:vnc
 
   rebuild:
     desc: Rebuild all images (no cache)
     deps:
       - rebuild:web
       - rebuild:x11
+      - rebuild:vnc
 
   up:
     desc: Start all services

@@ -42,10 +42,9 @@ FROM ubuntu:26.04 AS base
 # ENV DEPLOYMENT_ENVIRO=${DEPLOYMENT_ENVIRO}
 
 LABEL maintainer="haisamido"
-LABEL description="GMAT Multi-Target Build Container (Native + WebAssembly)"
+LABEL description="GMAT Multi-Target Build Container (Native + VNC + WebAssembly)"
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PARALLEL_JOBS=6
 
 # Install common build dependencies
 RUN apt-get update && apt-get install -y \
@@ -192,7 +191,7 @@ RUN mkdir -p cmake-build && \
       -DOPENFRAMES_LIBRARY=/opt/openframes/install/lib/libOpenFrames.so \
       -DOPENSCENEGRAPH_INCLUDE_DIRS=/usr/include \
       -DGMAT_ADDITIONAL_PLUGINS=/gmat/ListOfAdditionalPlugins.txt \
-      -DGMAT_PYTHON313_ROOT_DIR=/usr && \
+      -DGMAT_PYTHON314_ROOT_DIR=/usr && \
     cmake --build cmake-build --parallel $(nproc)
 
 # Copy OpenFramesInterface data to GMAT paths (shaders, textures, stars)
@@ -220,8 +219,7 @@ RUN cd application/bin && \
     for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt; do \
       if [ -f "$f" ]; then \
         sed -i '/libMatlabInterface/d; /libFminconOptimizer/d' "$f" && \
-        sed -i '/proprietary\//d' "$f" && \
-        sed -i '/libExternalForceModel/d' "$f"; \
+        sed -i '/proprietary\//d' "$f"; \
       fi; \
     done
 

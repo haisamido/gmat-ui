@@ -98,7 +98,8 @@ case "${1:-help}" in
     echo "  docker run -it gmat-builder shell"
     echo ""
     echo "Build specific targets (run from deployments/):"
-    echo "  docker build -f Containerfile --target native -t gmat-native ."
+    echo "  docker build -f Containerfile --target native -t gmat-x11 ."
+    echo "  docker build -f Containerfile --target vnc -t gmat-vnc ."
     echo "  docker build -f Containerfile --target wasm -t gmat-web ."
     ;;
 esac
