@@ -191,7 +191,8 @@ RUN mkdir -p cmake-build && \
       -DOPENFRAMES_INCLUDE_DIR=/opt/openframes/install/include \
       -DOPENFRAMES_LIBRARY=/opt/openframes/install/lib/libOpenFrames.so \
       -DOPENSCENEGRAPH_INCLUDE_DIRS=/usr/include \
-      -DGMAT_ADDITIONAL_PLUGINS=/gmat/ListOfAdditionalPlugins.txt && \
+      -DGMAT_ADDITIONAL_PLUGINS=/gmat/ListOfAdditionalPlugins.txt \
+      -DGMAT_PYTHON313_ROOT_DIR=/usr && \
     cmake --build cmake-build --parallel $(nproc)
 
 # Copy OpenFramesInterface data to GMAT paths (shaders, textures, stars)
@@ -206,17 +207,21 @@ RUN mkdir -p application/bin application/output application/plugins && \
              GMAT.ini MacConfigure.txt; do \
       [ -f /gmat/application/bin/$f ] && cp /gmat/application/bin/$f application/bin/ || true; \
     done && \
-    rm -rf application/data && ln -s /gmat/application/data application/data && \
-    rm -rf application/samples && ln -s /gmat/application/samples application/samples
+    rm -rf application/data && \
+        ln -s /gmat/application/data application/data && \
+    rm -rf application/samples && \
+        ln -s /gmat/application/samples application/samples && \
+    rm -rf application/docs && \
+        ln -s /gmat/application/docs application/docs
 
-# Remove references to plugins that weren't built (proprietary, MATLAB, Python)
+# Remove references to plugins that weren't built (proprietary, MATLAB)
 # to prevent buffer overflows from failed plugin loads
 RUN cd application/bin && \
     for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt; do \
       if [ -f "$f" ]; then \
         sed -i '/libMatlabInterface/d; /libFminconOptimizer/d' "$f" && \
         sed -i '/proprietary\//d' "$f" && \
-        sed -i '/libPythonInterface/d; /libExternalForceModel/d' "$f"; \
+        sed -i '/libExternalForceModel/d' "$f"; \
       fi; \
     done
 
