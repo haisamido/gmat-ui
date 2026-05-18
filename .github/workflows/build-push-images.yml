@@ -1,19 +1,19 @@
 # Build and publish GMAT Docker images to GitHub Container Registry
 #
 # Builds two targets from Containerfile:
-#   wasm   - Browser-based GMAT (node:20-slim, port 8989)
-#   native - Console + GUI GMAT (ubuntu:26.04, both GmatConsole and GMAT binaries)
+#   wasm - Browser-based GMAT (node:20-slim, port 8989)
+#   vnc  - Native GUI with VNC (browser-accessible 3D visualization)
 #
 # Images are pushed as:
 #   ghcr.io/haisamido/gmat-ui/gmat-web:<branch|latest>
-#   ghcr.io/haisamido/gmat-ui/gmat-x11:<branch|latest>
+#   ghcr.io/haisamido/gmat-ui/gmat-vnc:<branch|latest>
 #
 # Usage:
 #   docker pull ghcr.io/haisamido/gmat-ui/gmat-web:latest
 #   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/gmat-web:latest
-#   docker pull ghcr.io/haisamido/gmat-ui/gmat-x11:latest
-#   docker run -it ghcr.io/haisamido/gmat-ui/gmat-x11:latest              # console
-#   docker run -it ghcr.io/haisamido/gmat-ui/gmat-x11:latest ./GMAT       # GUI
+#   docker pull ghcr.io/haisamido/gmat-ui/gmat-vnc:latest
+#   docker run -p 15801:80 ghcr.io/haisamido/gmat-ui/gmat-vnc:latest
+#   # Open http://localhost:15801/vnc.html
 #
 # To enable arm64: uncomment the arm64 matrix entries below and the
 # manifest job, then switch the build job to push-by-digest mode.
@@ -44,15 +44,15 @@ jobs:
         include:
           - target: wasm
             image_name: gmat-web
-          - target: native
-            image_name: gmat-x11
+          - target: vnc
+            image_name: gmat-vnc
           # --- arm64 (uncomment to enable multi-arch) ---
           # - target: wasm
           #   image_name: gmat-web
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
-          # - target: native
-          #   image_name: gmat-x11
+          # - target: vnc
+          #   image_name: gmat-vnc
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
 
@@ -131,7 +131,7 @@ jobs:
   #     matrix:
   #       include:
   #         - image_name: gmat-web
-  #         - image_name: gmat-x11
+  #         - image_name: gmat-vnc
   #   steps:
   #     - name: Download digests
   #       uses: actions/download-artifact@v4

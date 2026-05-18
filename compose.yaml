@@ -2,6 +2,7 @@ name: gmat
 
 services:
   gmat-web:
+    platform: linux/amd64
     build:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
@@ -20,6 +21,7 @@ services:
     restart: unless-stopped
 
   gmat-x11:
+    platform: linux/amd64
     build:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
@@ -32,6 +34,8 @@ services:
       - DISPLAY=${GMAT_DISPLAY:-host.docker.internal:0}
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_SOFTWARE=1
+      - MESA_GL_VERSION_OVERRIDE=3.3
+      - GALLIUM_DRIVER=llvmpipe
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
     healthcheck:
@@ -43,7 +47,25 @@ services:
     networks:
       - gmat-network
 
+  gmat-vnc:
+    platform: linux/amd64
+    build:
+      context: ${CONTAINER_CONTEXT:-.}
+      dockerfile: ${CONTAINER_FILE:-Containerfile}
+      target: vnc
+    image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-vnc:${CONTAINER_TAG:-latest}
+    hostname: gmat-vnc
+    container_name: gmat-vnc
+    environment:
+      - DISPLAY=:1
+    ports:
+      - "${VNC_HOST_PORT:-15801}:80"
+    networks:
+      - gmat-network
+    restart: unless-stopped
+
   gmat-console:
+    platform: linux/amd64
     profiles:
       - console
     build:

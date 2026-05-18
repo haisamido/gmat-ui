@@ -2,7 +2,7 @@
 
 ## Per-service
 
-Replace `web` with `x11` for native GUI, or `console` for headless console.
+Replace `web` with `vnc`, `x11`, or `console`.
 
 ```
 task build:web        Build image
@@ -27,7 +27,7 @@ task clean            Remove all containers, images, and networks
 
 ```
 task ci:web           Run CI for web target
-task ci:native        Run CI for native target
+task ci:vnc           Run CI for vnc target
 task ci:dry-run       Dry-run all CI builds
 ```
 

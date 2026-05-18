@@ -66,6 +66,8 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-dev \
     libglu1-mesa-dev \
     freeglut3-dev \
+    # OpenSceneGraph (for OpenFrames 3D visualization)
+    libopenscenegraph-dev \
     # Python (for PythonInterface plugin)
     python3-dev \
     # SWIG (for API bindings)
@@ -151,13 +153,47 @@ RUN mkdir -p depends && \
 
 WORKDIR /gmat/deployments
 
-# Configure and build native GMAT (GUI, console, and plugins)
+# Build OpenFrames 3D visualization library
+WORKDIR /opt/openframes
+RUN git clone https://github.com/ravidavi/OpenFrames.git . && \
+    mkdir build && cd build && \
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/opt/openframes/install \
+      -DOF_FORTRAN_MODULE=OFF \
+      -DOF_PYTHON_MODULE=OFF \
+      -DOF_QT_MODULE=OFF \
+      -DOF_VR_MODULE=OFF \
+      -DOF_BUILD_DEMOS=OFF && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install .
+
+# Clone OpenFramesInterface GMAT plugin
+WORKDIR /opt/openframes-interface
+RUN git clone https://gitlab.com/EmergentSpaceTechnologies/OpenFramesInterface.git . && \
+    echo "OpenFramesInterface=/opt/openframes-interface" > /gmat/ListOfAdditionalPlugins.txt
+
+WORKDIR /gmat/deployments
+
+# Configure and build native GMAT (GUI, console, and plugins including OpenFrames)
 RUN mkdir -p cmake-build && \
     cmake -S /gmat -B cmake-build \
       -DCMAKE_BUILD_TYPE=Release \
       -DGMAT_INCLUDE_GUI=ON \
-      -DGMAT_BUILDOUTPUT_DIRECTORY=/gmat/deployments/application && \
+      -DGMAT_BUILDOUTPUT_DIRECTORY=/gmat/deployments/application \
+      -DPLUGIN_OPENFRAMESINTERFACE=ON \
+      -DOPENFRAMESINTERFACE_USE_OSGEARTH=OFF \
+      -DOPENFRAMES_DIR=/opt/openframes/install \
+      -DOPENFRAMES_INCLUDE_DIR=/opt/openframes/install/include \
+      -DOPENFRAMES_LIBRARY=/opt/openframes/install/lib/libOpenFrames.so \
+      -DOPENSCENEGRAPH_INCLUDE_DIRS=/usr/include \
+      -DGMAT_ADDITIONAL_PLUGINS=/gmat/ListOfAdditionalPlugins.txt && \
     cmake --build cmake-build --parallel $(nproc)
+
+# Copy OpenFramesInterface data to GMAT paths (shaders, textures, stars)
+RUN cp /opt/openframes-interface/data/shader/*.frag /gmat/application/data/graphics/texture/ && \
+    cp /opt/openframes-interface/data/texture/*.jpg /gmat/application/data/graphics/texture/ && \
+    cp /opt/openframes-interface/data/stars/inp_StarsHYGv3.txt /gmat/application/data/graphics/stars/
 
 # Create required runtime directories and copy config
 RUN mkdir -p application/bin application/output application/plugins && \
@@ -166,17 +202,17 @@ RUN mkdir -p application/bin application/output application/plugins && \
              GMAT.ini MacConfigure.txt; do \
       [ -f /gmat/application/bin/$f ] && cp /gmat/application/bin/$f application/bin/ || true; \
     done && \
-    [ ! -e application/data ] && ln -s /gmat/application/data application/data || true && \
-    [ ! -e application/samples ] && ln -s /gmat/application/samples application/samples || true
+    rm -rf application/data && ln -s /gmat/application/data application/data && \
+    rm -rf application/samples && ln -s /gmat/application/samples application/samples
 
-# Remove references to plugins that weren't built (proprietary, MATLAB, external)
+# Remove references to plugins that weren't built (proprietary, MATLAB, Python)
 # to prevent buffer overflows from failed plugin loads
 RUN cd application/bin && \
     for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt; do \
       if [ -f "$f" ]; then \
         sed -i '/libMatlabInterface/d; /libFminconOptimizer/d' "$f" && \
         sed -i '/proprietary\//d' "$f" && \
-        sed -i '/libOpenFramesInterface/d; /libOVtoOFI/d' "$f"; \
+        sed -i '/libPythonInterface/d; /libExternalForceModel/d' "$f"; \
       fi; \
     done
 
@@ -190,11 +226,99 @@ RUN ls -la application/bin/ && \
       exit 1; \
     fi
 
+# Copy OpenFrames shared libraries to the application plugins directory
+RUN cp /opt/openframes/install/lib/lib*.so* application/plugins/ 2>/dev/null || true
+
 # Move to short path to avoid GMAT buffer overflow on long paths
 RUN mv /gmat/deployments/application /app
 
+ENV LD_LIBRARY_PATH=/app/plugins:${LD_LIBRARY_PATH}
+ENV OSG_FILE_PATH=/app/data
+
 WORKDIR /app/bin
 CMD ["./GmatConsole"]
+
+# =============================================================================
+# Stage 3b: Native with VNC (browser-accessible 3D visualization)
+# =============================================================================
+FROM native AS vnc
+
+# Install X server and window manager
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xorg \
+    xterm \
+    fluxbox \
+    feh \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install TurboVNC
+RUN curl -fsSL -o /tmp/turbovnc.deb \
+    https://github.com/TurboVNC/turbovnc/releases/download/3.1.2/turbovnc_3.1.2_amd64.deb && \
+    apt-get update && apt-get install -y -f /tmp/turbovnc.deb && \
+    rm -f /tmp/turbovnc.deb && rm -rf /var/lib/apt/lists/*
+
+# Install noVNC and websockify
+RUN git clone --depth 1 https://github.com/novnc/noVNC.git /usr/share/novnc && \
+    pip3 install --break-system-packages websockify && \
+    sed -i "s/UI.initSetting('resize', 'off')/UI.initSetting('resize', 'remote')/" /usr/share/novnc/app/ui.js
+
+# VNC password setup
+ARG VNC_PASSWORD=gmat
+ENV VNC_PASSWORD=${VNC_PASSWORD}
+RUN mkdir -p ~/.vnc && \
+    echo "$VNC_PASSWORD" | /opt/TurboVNC/bin/vncpasswd -f > ~/.vnc/passwd && \
+    chmod 0600 ~/.vnc/passwd
+
+# SSL certificate for noVNC
+RUN openssl req -x509 -nodes -newkey rsa:2048 \
+    -keyout ~/novnc.pem -out ~/novnc.pem -days 3650 \
+    -subj "/C=US/ST=MD/L=Greenbelt/O=GMAT/CN=localhost"
+
+# Fluxbox config
+RUN mkdir -p ~/.fluxbox && \
+    echo "session.screen0.rootCommand: xsetroot -solid '#1a1a2e'" > ~/.fluxbox/init && \
+    cat <<'MENU_EOF' > ~/.fluxbox/menu
+[begin] (GMAT)
+  [exec] (GMAT) {cd /app/bin && ./GMAT} </app/data/graphics/icons/GMATLinux48.xpm>
+  [exec] (xterm) {xterm}
+  [separator]
+  [restart] (Restart Fluxbox)
+  [exit] (Exit)
+[end]
+MENU_EOF
+
+# GMAT desktop shortcut
+RUN mkdir -p ~/Desktop && \
+    cat <<'DESKTOP_EOF' > ~/Desktop/GMAT.desktop
+[Desktop Entry]
+Type=Application
+Name=GMAT
+Exec=sh -c 'cd /app/bin && ./GMAT'
+Icon=/app/data/graphics/icons/GMATLinux48.xpm
+Terminal=false
+DESKTOP_EOF
+RUN chmod +x ~/Desktop/GMAT.desktop
+
+# Startup script
+RUN cat <<'ENTRYPOINT_EOF' > /entrypoint.sh
+#!/bin/bash
+
+/opt/TurboVNC/bin/vncserver -securitytypes tlsnone,x509none,none && \
+  python3 -m websockify -D \
+    --web=/usr/share/novnc/ \
+    --cert=~/novnc.pem 80 localhost:5901
+
+xterm &
+cd /app/bin && ./GMAT &
+
+tail -f /dev/null
+ENTRYPOINT_EOF
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 80
+
+CMD ["/entrypoint.sh"]
 
 # =============================================================================
 # Stage 4: WebAssembly build
