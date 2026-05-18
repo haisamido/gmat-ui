@@ -24,8 +24,14 @@ name: Docker Image CI
 on:
   push:
     branches: ["main", "dev", "issue-*"]
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
   pull_request:
     branches: ["main", "dev"]
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
   workflow_dispatch:
 
 env:

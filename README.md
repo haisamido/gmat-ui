@@ -1,6 +1,27 @@
 # GMAT Container Tasks
 
+- [Quick start](#quick-start)
+- [Per-service](#per-service)
+- [All services](#all-services)
+- [CI (local testing with act)](#ci-local-testing-with-act)
+- [Utility](#utility)
+
 ## Quick start
+
+```
+docker run -d -p 127.0.0.1:15801:80 --platform linux/amd64 --name gmat-vnc \
+  ghcr.io/haisamido/gmat-ui/gmat-vnc:latest
+```
+
+Open http://localhost:15801/vnc.html
+
+To stop and remove:
+
+```
+docker stop gmat-vnc && docker rm gmat-vnc
+```
+
+Or with Task:
 
 ```
 task build:vnc        Build the VNC image
