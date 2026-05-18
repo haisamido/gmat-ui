@@ -14,8 +14,8 @@ const crypto = require('crypto');
 const PORT            = process.env.PORT || 8989;
 const ROOT_DIR        = process.env.ROOT_DIR || '/gmat/out';
 const SAMPLES_DIR     = process.env.SAMPLES_DIR || '/gmat/application/samples';
-const GIT_COMMIT      = process.env.GIT_COMMIT || 'unknown';
-const GIT_COMMIT_FULL = process.env.GIT_COMMIT_FULL || 'unknown';
+const GIT_COMMIT      = process.env.GMAT_GIT_COMMIT || 'unknown';
+const GIT_COMMIT_FULL = process.env.GMAT_GIT_COMMIT_FULL || 'unknown';
 const REPO_COMMIT_URL = process.env.REPO_COMMIT_URL || '';
 const SERVER_ID       = crypto.randomBytes(4).toString('hex');
 

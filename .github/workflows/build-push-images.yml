@@ -1,20 +1,5 @@
 # Build and publish GMAT Docker images to GitHub Container Registry
-#
-# Builds two targets from Containerfile:
-#   wasm - Browser-based GMAT (node:24-slim, port 8989)
-#   vnc  - Native GUI with VNC (browser-accessible 3D visualization)
-#
-# Images are pushed as:
-#   ghcr.io/haisamido/gmat-ui/gmat-web:<branch|latest>
-#   ghcr.io/haisamido/gmat-ui/gmat-vnc:<branch|latest>
-#
-# Usage:
-#   docker pull ghcr.io/haisamido/gmat-ui/gmat-web:latest
-#   docker run -p 8989:8989 ghcr.io/haisamido/gmat-ui/gmat-web:latest
-#   docker pull ghcr.io/haisamido/gmat-ui/gmat-vnc:latest
-#   docker run -p 15801:80 ghcr.io/haisamido/gmat-ui/gmat-vnc:latest
-#   # Open http://localhost:15801/vnc.html
-#
+
 # To enable arm64: uncomment the arm64 matrix entries below and the
 # manifest job, then switch the build job to push-by-digest mode.
 # Native arm64 runners (ubuntu-24.04-arm) avoid slow QEMU emulation.
@@ -48,16 +33,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: wasm
+          - target: gmat-web
             image_name: gmat-web
-          - target: vnc
+          - target: gmat-vnc
             image_name: gmat-vnc
           # --- arm64 (uncomment to enable multi-arch) ---
-          # - target: wasm
+          # - target: gmat-web
           #   image_name: gmat-web
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
-          # - target: vnc
+          # - target: gmat-vnc
           #   image_name: gmat-vnc
           #   runner: ubuntu-24.04-arm
           #   platform: linux/arm64
@@ -104,7 +89,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            GIT_COMMIT_FULL=${{ github.sha }}
+            GMAT_GIT_COMMIT_FULL=${{ github.sha }}
             REPO_COMMIT_URL=https://github.com/${{ github.repository }}/commit/${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max
@@ -122,7 +107,7 @@ jobs:
           platforms: linux/amd64
           provenance: false
           build-args: |
-            GIT_COMMIT_FULL=${{ github.sha }}
+            GMAT_GIT_COMMIT_FULL=${{ github.sha }}
             REPO_COMMIT_URL=https://github.com/${{ github.repository }}/commit/${{ github.sha }}
 
   # --- Multi-arch manifest (uncomment when arm64 builds are enabled) ---

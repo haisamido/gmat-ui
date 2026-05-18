@@ -1,0 +1,2 @@
+session.screen0.rootCommand: feh --bg-center --image-bg '#030355' /gmat/application/data/graphics/splash/GMATSplashScreen.png
+session.screen0.strftimeFormat: %Y-%m-%dT%H:%M:%S%z

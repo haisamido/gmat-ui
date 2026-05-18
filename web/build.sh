@@ -225,8 +225,8 @@ run() {
     # Use Node.js server (same as Docker runtime)
     PORT="${PORT}" \
     ROOT_DIR="${WASM_OUT_DIR}" \
-    GIT_COMMIT="${GIT_HASH}" \
-    GIT_COMMIT_FULL="${GIT_HASH_FULL}" \
+    GMAT_GIT_COMMIT="${GIT_HASH}" \
+    GMAT_GIT_COMMIT_FULL="${GIT_HASH_FULL}" \
     REPO_COMMIT_URL="${REPO_COMMIT_URL}" \
     node "${SCRIPT_DIR}/server.js"
 }

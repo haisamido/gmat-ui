@@ -4,7 +4,7 @@
 
 set -e
 
-DEPLOY_DIR=/gmat/deployments
+DEPLOY_DIR=/gmat/build
 APP_DIR=$DEPLOY_DIR/application
 BUILD_DIR=$DEPLOY_DIR/cmake-build
 
@@ -97,9 +97,9 @@ case "${1:-help}" in
     echo "  docker run -p 8989:8989 gmat-builder web"
     echo "  docker run -it gmat-builder shell"
     echo ""
-    echo "Build specific targets (run from deployments/):"
-    echo "  docker build -f Containerfile --target native -t gmat-x11 ."
-    echo "  docker build -f Containerfile --target vnc -t gmat-vnc ."
-    echo "  docker build -f Containerfile --target wasm -t gmat-web ."
+    echo "Build specific targets:"
+    echo "  docker build -f Containerfile --target gmat-build-native -t gmat-build-native ."
+    echo "  docker build -f Containerfile --target gmat-vnc -t gmat-vnc ."
+    echo "  docker build -f Containerfile --target gmat-web -t gmat-web ."
     ;;
 esac

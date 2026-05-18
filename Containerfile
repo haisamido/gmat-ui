@@ -1,32 +1,23 @@
 # GMAT Multi-Target Build Container
 # Builds NASA's General Mission Analysis Tool for Native Linux and WebAssembly
 #
-# Three build targets:
-#   native - Console + GUI GMAT (ubuntu:26.04, GmatConsole and GMAT with OpenFrames)
-#   vnc    - Native GUI with VNC (browser-accessible 3D visualization via noVNC)
-#   wasm   - Browser-based GMAT (node:20-slim, port 8989)
+# Stage hierarchy:
 #
-# Usage:
-#   docker build -f Containerfile --target native -t gmat-x11 .
-#   docker build -f Containerfile --target vnc -t gmat-vnc .
-#   docker build -f Containerfile --target wasm -t gmat-web .
+#   ubuntu:26.04 ──► gmat-base ──┬──► gmat-build-native ──► gmat-vnc
+#                                ├──► gmat-build-web ──► gmat-web ◄── node:24-slim
+#                                └──► gmat-combined
 #
-#   docker run -it gmat-x11                   # Console
-#   docker run -it gmat-x11 ./GMAT            # GUI (requires X11)
-#   docker run -p 15801:80 gmat-vnc           # VNC (open http://localhost:15801/vnc.html)
-#   docker run -p 8989:8989 gmat-web          # Web UI
-#
-# Task integration:
-#   task build                   # Build all images
-#   task up:web                  # Start the web UI
-#   task up:vnc                  # Start VNC GUI (browser)
-#   task up:x11                  # Start native GUI (X11)
-#   task up:console              # Start native console
+
+ARG GMAT_GIT_URL=https://github.com/nasa/GMAT
+ARG GMAT_GIT_COMMIT=ce6eba2ee4a2da22e01522741d926d0c574173ff
 
 # =============================================================================
-# Stage 1: Base image with common dependencies
+# Stage 1: Base image with dependencies, GMAT source, and build context
 # =============================================================================
-FROM ubuntu:26.04 AS base
+FROM ubuntu:26.04 AS gmat-base
+
+ARG TARGETARCH
+ARG ARCH=${TARGETARCH}
 
 #--- PROXY CONFIG (if needed)
 ARG MAVEN_HTTPS_PROXY
@@ -46,6 +37,13 @@ LABEL description="GMAT Multi-Target Build Container (Native + VNC + WebAssembly
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    netcat-traditional netcat-openbsd iputils-ping \
+    jq tmux tree vim curl wget htop tshark && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install common build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -57,6 +55,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     gzip \
     xz-utils \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Install native build dependencies (shared by all stages)
@@ -94,15 +93,14 @@ RUN curl -sL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin
 WORKDIR /opt/spice
 RUN mkdir -p depends/cspice/linux && \
     cd depends/cspice/linux && \
-    ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
-        echo "=== Downloading pre-built CSPICE for x86_64 ===" && \
+    if [ "$ARCH" = "amd64" ]; then \
+        echo "=== Downloading pre-built CSPICE for amd64 ===" && \
         curl -sO https://naif.jpl.nasa.gov/pub/naif/misc/toolkit_N0067/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z && \
         gzip -d cspice.tar.Z && \
         tar -xf cspice.tar && \
         mv cspice cspice64 && \
         rm -f cspice.tar; \
-    elif [ "$ARCH" = "aarch64" ]; then \
+    elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then \
         echo "=== Building CSPICE from source for arm64 ===" && \
         curl -sO https://naif.jpl.nasa.gov/pub/naif/misc/toolkit_N0067/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z && \
         gzip -d cspice.tar.Z && \
@@ -124,47 +122,36 @@ RUN mkdir -p depends/cspice/linux && \
     cd cspice64/lib && \
     cp cspice.a cspiced.a
 
-    RUN apt-get update && \
-      apt-get install -y --no-install-recommends \
-        netcat-traditional netcat-openbsd \
-          jq tmux tree vim curl wget && \
-      apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
-# =============================================================================
-# Stage 2: GMAT source image (cloned from NASA, with deployment overlay)
-# =============================================================================
-FROM base AS gmat-source
-
+# Clone GMAT source and apply build context
 WORKDIR /gmat
 
-ARG GIT_URL=https://github.com/nasa/GMAT
-ARG GIT_COMMIT=ce6eba2ee4a2da22e01522741d926d0c574173ff
+ARG GMAT_GIT_URL
+ARG GMAT_GIT_COMMIT
+RUN git clone --recurse-submodules -j4 ${GMAT_GIT_URL} .
+RUN git checkout ${GMAT_GIT_COMMIT}
+RUN git config --system --add safe.directory /gmat
 
-RUN git clone --recurse-submodules -j4 ${GIT_URL} .
-RUN git checkout ${GIT_COMMIT}
-
-# =============================================================================
-# Stage 2b: Add deployment infrastructure from build context (user's repo)
-# =============================================================================
-FROM gmat-source AS gmat-source-deployments
-
-# Copy deployment infrastructure from build context (user's repo, not NASA's)
-COPY . /gmat/deployments/
-
-# =============================================================================
-# Stage 3: Native Linux build
-# =============================================================================
-FROM gmat-source-deployments AS native
+# Copy build context (user's repo, not NASA's)
+COPY . /gmat/build/
 
 # Apply source overlay patches (e.g., DeFile.hpp strcpy->memcpy fix)
-RUN if [ -d /gmat/deployments/src ]; then cp -r /gmat/deployments/src/* /gmat/src/; fi
+RUN if [ -d /gmat/build/src ]; then cp -r /gmat/build/src/* /gmat/src/; fi
+
+# Create gmat user with sudo access (available to all downstream stages)
+RUN useradd -m -s /bin/bash gmat && \
+    usermod -aG sudo gmat && \
+    echo "gmat ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/gmat && \
+    chmod 0440 /etc/sudoers.d/gmat
+
+# =============================================================================
+# Stage 3: GMAT native build
+# =============================================================================
+FROM gmat-base AS gmat-build-native
 
 # Symlink CSPICE from /opt/spice to where GMAT expects it
 RUN mkdir -p depends && \
     ln -s /opt/spice/depends/cspice depends/cspice
-
-WORKDIR /gmat/deployments
 
 # Build OpenFrames 3D visualization library
 WORKDIR /opt/openframes
@@ -186,14 +173,14 @@ WORKDIR /opt/openframes-interface
 RUN git clone https://gitlab.com/EmergentSpaceTechnologies/OpenFramesInterface.git . && \
     echo "OpenFramesInterface=/opt/openframes-interface" > /gmat/ListOfAdditionalPlugins.txt
 
-WORKDIR /gmat/deployments
+WORKDIR /gmat/build
 
 # Configure and build native GMAT (GUI, console, and plugins including OpenFrames)
 RUN mkdir -p cmake-build && \
     cmake -S /gmat -B cmake-build \
       -DCMAKE_BUILD_TYPE=Release \
       -DGMAT_INCLUDE_GUI=ON \
-      -DGMAT_BUILDOUTPUT_DIRECTORY=/gmat/deployments/application \
+      -DGMAT_BUILDOUTPUT_DIRECTORY=/gmat/application \
       -DPLUGIN_OPENFRAMESINTERFACE=ON \
       -DOPENFRAMESINTERFACE_USE_OSGEARTH=OFF \
       -DOPENFRAMES_DIR=/opt/openframes/install \
@@ -209,23 +196,15 @@ RUN cp /opt/openframes-interface/data/shader/*.frag /gmat/application/data/graph
     cp /opt/openframes-interface/data/texture/*.jpg /gmat/application/data/graphics/texture/ && \
     cp /opt/openframes-interface/data/stars/inp_StarsHYGv3.txt /gmat/application/data/graphics/stars/
 
-# Create required runtime directories and copy config
-RUN mkdir -p application/bin application/output application/plugins && \
-    for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt \
-             gmat_startup_file.public.txt gmat_startup_file_mac_linux.public.txt \
-             GMAT.ini MacConfigure.txt; do \
-      [ -f /gmat/application/bin/$f ] && cp /gmat/application/bin/$f application/bin/ || true; \
-    done && \
-    rm -rf application/data && \
-        ln -s /gmat/application/data application/data && \
-    rm -rf application/samples && \
-        ln -s /gmat/application/samples application/samples && \
-    rm -rf application/docs && \
-        ln -s /gmat/application/docs application/docs
+# Create runtime directories (cmake populates bin/ and plugins/ directly)
+RUN mkdir -p /gmat/application/output /gmat/application/plugins
+
+# Copy OpenFrames shared libraries to the application plugins directory
+RUN cp /opt/openframes/install/lib/lib*.so* /gmat/application/plugins/ 2>/dev/null || true
 
 # Remove references to plugins that weren't built (proprietary, MATLAB,
 # non-matching Python versions) to prevent errors from failed plugin loads
-RUN cd application/bin && \
+RUN cd /gmat/application/bin && \
     for f in gmat_startup_file.txt gmat_startup_file_mac_linux.txt; do \
       if [ -f "$f" ]; then \
         sed -i '/libMatlabInterface/d; /libFminconOptimizer/d' "$f" && \
@@ -235,36 +214,41 @@ RUN cd application/bin && \
       fi; \
     done
 
+# Create help directory (GMAT GUI expects ../docs/help/ to exist)
+RUN mkdir -p /gmat/application/docs/help
+
 # Verify the build
-RUN ls -la application/bin/ && \
+RUN ls -la /gmat/application/bin/ && \
     echo "=== GMAT Native Build Complete ===" && \
-    if [ -f application/bin/GmatConsole ] && [ -f application/bin/GMAT ]; then \
+    if [ -f /gmat/application/bin/GmatConsole ] && [ -f /gmat/application/bin/GMAT ]; then \
       echo "GmatConsole and GMAT GUI built successfully"; \
     else \
       echo "ERROR: Build incomplete"; \
       exit 1; \
     fi
 
-# Copy OpenFrames shared libraries to the application plugins directory
-RUN cp /opt/openframes/install/lib/lib*.so* application/plugins/ 2>/dev/null || true
+# Give gmat user ownership of the built application directory
+RUN chown -R gmat:gmat /gmat/application
 
-# Create help directory (GMAT GUI expects ../docs/help/ to exist)
-RUN mkdir -p application/docs/help
+ENV LD_LIBRARY_PATH=/gmat/application/plugins:${LD_LIBRARY_PATH}
+ENV OSG_FILE_PATH=/gmat/application/data:/usr/share/fonts/truetype/liberation
+RUN MULTIARCH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
+    echo "export OSG_LIBRARY_PATH=/usr/lib/$MULTIARCH" > /etc/profile.d/gmat-osg.sh && \
+    chmod +x /etc/profile.d/gmat-osg.sh
 
-# Move to short path to avoid GMAT buffer overflow on long paths
-RUN mv /gmat/deployments/application /app
+USER gmat
+ENV HOME=/home/gmat
 
-ENV LD_LIBRARY_PATH=/app/plugins:${LD_LIBRARY_PATH}
-ENV OSG_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
-ENV OSG_FILE_PATH=/app/data:/usr/share/fonts/truetype/liberation
-
-WORKDIR /app/bin
-CMD ["./GmatConsole"]
+WORKDIR /gmat/application/bin
+CMD ["bash", "-c", "source /etc/profile.d/gmat-osg.sh && exec ./GmatConsole"]
 
 # =============================================================================
 # Stage 3b: Native with VNC (browser-accessible 3D visualization)
 # =============================================================================
-FROM native AS vnc
+FROM gmat-build-native AS gmat-vnc
+
+# Package installs require root (gmat-build-native stage ends as USER gmat)
+USER root
 
 # Install X server and window manager
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -273,12 +257,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fluxbox \
     feh \
     openssl \
-    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TurboVNC
+# Install TurboVNC (TARGETARCH is set automatically by Docker buildx)
+ARG TARGETARCH
 RUN curl -fsSL -o /tmp/turbovnc.deb \
-    https://github.com/TurboVNC/turbovnc/releases/download/3.1.2/turbovnc_3.1.2_amd64.deb && \
+    "https://github.com/TurboVNC/turbovnc/releases/download/3.1.2/turbovnc_3.1.2_${TARGETARCH}.deb" && \
     apt-get update && apt-get install -y -f /tmp/turbovnc.deb && \
     rm -f /tmp/turbovnc.deb && rm -rf /var/lib/apt/lists/*
 
@@ -287,17 +271,21 @@ RUN git clone --depth 1 https://github.com/novnc/noVNC.git /usr/share/novnc && \
     pip3 install --break-system-packages websockify && \
     sed -i "s/UI.initSetting('resize', 'off')/UI.initSetting('resize', 'remote')/" /usr/share/novnc/app/ui.js
 
-# Create gmat user with sudo access
-RUN useradd -m -s /bin/bash -G sudo gmat && \
-    echo "gmat ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/gmat && \
-    chmod 0440 /etc/sudoers.d/gmat
+# Install additional tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        chromium-browser && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Give gmat user ownership of application and source directories
-RUN chown -R gmat:gmat /app /gmat
+# Ensure /tmp/.X11-unix exists, gmat owns its home, and fontconfig cache is built
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix && \
+    mkdir -p /home/gmat/.cache/fontconfig && \
+    chown -R gmat:gmat /home/gmat && \
+    fc-cache -f
 
-# Switch to gmat user for all remaining setup
+# Switch to gmat user for remaining setup
 USER gmat
-ENV HOME=/home/gmat
 
 # VNC password setup
 ARG VNC_PASSWORD=gmat
@@ -311,81 +299,22 @@ RUN openssl req -x509 -nodes -newkey rsa:2048 \
     -keyout ~/novnc.pem -out ~/novnc.pem -days 3650 \
     -subj "/C=US/ST=MD/L=Greenbelt/O=GMAT/CN=localhost"
 
-# Fluxbox config (override default ubuntu-light.png wallpaper)
-RUN mkdir -p ~/.fluxbox && \
-    echo "session.screen0.rootCommand: xsetroot -solid '#1a1a2e'" > ~/.fluxbox/init && \
-    echo "session.screen0.rootCommand: xsetroot -solid '#1a1a2e'" > ~/.fluxbox/overlay && \
-    cat <<'MENU_EOF' > ~/.fluxbox/menu
-[begin] (GMAT)
-  [exec] (Chromium) {chromium --no-sandbox}
-  [exec] (Firefox) {firefox}
-  [exec] (GMAT) {cd /app/bin && ./GMAT} </app/data/graphics/icons/GMATLinux48.xpm>
-  [exec] (xterm) {xterm}
-  [separator]
-  [restart] (Restart Fluxbox)
-  [exit] (Exit)
-[end]
-MENU_EOF
+# Fluxbox config
+RUN mkdir -p ~/.fluxbox
+COPY --chown=gmat:gmat vnc/fluxbox/ /home/gmat/.fluxbox/
 
 # GMAT desktop shortcut
-RUN mkdir -p ~/Desktop && \
-    cat <<'DESKTOP_EOF' > ~/Desktop/GMAT.desktop
-[Desktop Entry]
-Type=Application
-Name=GMAT
-Exec=sh -c 'cd /app/bin && ./GMAT'
-Icon=/app/data/graphics/icons/GMATLinux48.xpm
-Terminal=false
-DESKTOP_EOF
+RUN mkdir -p ~/Desktop
+COPY --chown=gmat:gmat vnc/GMAT.desktop /home/gmat/Desktop/GMAT.desktop
 RUN chmod +x ~/Desktop/GMAT.desktop
 
-# Startup script (runs as gmat user; uses sudo for privileged port 80)
-USER root
-RUN cat <<'ENTRYPOINT_EOF' > /entrypoint.sh
-#!/bin/bash
+# Shell config
+COPY --chown=gmat:gmat vnc/bashrc /home/gmat/.bashrc
+COPY vnc/bashrc /root/.bashrc
 
-# Suppress Glycin sandbox warning (bubblewrap unavailable in containers)
-export GLYCIN_SANDBOX=false
-
-# Suppress GTK/pixman warnings from software renderer (cosmetic, no functional impact)
-export GDK_BACKEND=x11
-export MESA_LOG_LEVEL=error
-
-# Start VNC server
-/opt/TurboVNC/bin/vncserver -geometry 1920x1080 -securitytypes tlsnone,x509none,none
-
-# Start websockify (sudo for privileged port 80)
-sudo python3 -m websockify -D \
-    --web=/usr/share/novnc/ \
-    --cert=$HOME/novnc.pem 80 localhost:5901
-
-# Set up environment for GUI applications
-export DISPLAY=:1
-export LD_LIBRARY_PATH=/app/plugins:${LD_LIBRARY_PATH}
-export OSG_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
-export OSG_FILE_PATH=/app/data:/usr/share/fonts/truetype/liberation
-
-# Launch applications
-xterm &
-cd /app/bin && ./GMAT 2>&1 | grep -v -E 'Glycin|pixman_region|_pixman_log_error|Gtk-CRITICAL.*width' &
-
-tail -f /dev/null
-ENTRYPOINT_EOF
+# VNC entrypoint
+COPY --chown=gmat:gmat vnc/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        chromium-browser htop tshark && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Ensure /tmp/.X11-unix exists, gmat owns its home, and fontconfig cache is built
-RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix && \
-    mkdir -p /home/gmat/.cache/fontconfig && \
-    chown -R gmat:gmat /home/gmat && \
-    fc-cache -f
-
-USER gmat
 
 EXPOSE 80
 
@@ -394,9 +323,9 @@ CMD ["/entrypoint.sh"]
 # =============================================================================
 # Stage 4: WebAssembly build
 # =============================================================================
-FROM gmat-source-deployments AS wasm-builder
+FROM gmat-base AS gmat-build-web
 
-WORKDIR /gmat/deployments
+WORKDIR /gmat/build
 
 # Install Node.js from apt
 RUN apt-get update && apt-get install -y \
@@ -468,46 +397,46 @@ CMD ["node", "web/server.js"]
 # =============================================================================
 # Stage 5: Minimal WASM runtime image (just the built artifacts)
 # =============================================================================
-FROM node:24-slim AS wasm
+FROM node:24-slim AS gmat-web
 
-LABEL description="GMAT WebAssembly Runtime"
+LABEL description="GMAT WebAssembly (WASM) Runtime"
 
 # Build args for git info (passed via --build-arg)
-ARG GIT_COMMIT=unknown
-ARG GIT_COMMIT_FULL=unknown
+ARG GMAT_GIT_COMMIT=unknown
+ARG GMAT_GIT_COMMIT_FULL=unknown
 ARG REPO_COMMIT_URL=
 
 WORKDIR /gmat
 
 # Copy only the built WASM output and server script (preserve path structure)
-COPY --from=wasm-builder /gmat/deployments/web/out/ /gmat/deployments/web/out/
-COPY --from=wasm-builder /gmat/deployments/web/server.js /gmat/deployments/web/server.js
+COPY --from=gmat-build-web /gmat/build/web/out/ /gmat/build/web/out/
+COPY --from=gmat-build-web /gmat/build/web/server.js /gmat/build/web/server.js
 
 # Bake git info into the image at build time
 ENV PORT=8989
-ENV ROOT_DIR=/gmat/deployments/web/out
-ENV GIT_COMMIT=${GIT_COMMIT}
-ENV GIT_COMMIT_FULL=${GIT_COMMIT_FULL}
+ENV ROOT_DIR=/gmat/build/web/out
+ENV GMAT_GIT_COMMIT=${GMAT_GIT_COMMIT}
+ENV GMAT_GIT_COMMIT_FULL=${GMAT_GIT_COMMIT_FULL}
 ENV REPO_COMMIT_URL=${REPO_COMMIT_URL}
 
 EXPOSE 8989
 
 # Serve the WASM application with custom server
-CMD ["node", "/gmat/deployments/web/server.js"]
+CMD ["node", "/gmat/build/web/server.js"]
 
 # =============================================================================
-# Stage 6: Combined image (can run either native or wasm) - DEFAULT
+# Stage 6: Combined image (can run either gmat-build-native or wasm) - DEFAULT
 # =============================================================================
-FROM gmat-source-deployments AS combined
+FROM gmat-base AS gmat-combined
 
-WORKDIR /gmat/deployments
+WORKDIR /gmat/build
 
 # Copy entrypoint script (already in image from source stage COPY)
-RUN cp /gmat/deployments/entrypoint.sh /entrypoint.sh && \
+RUN cp /gmat/build/entrypoint.sh /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Create runtime directories
-RUN mkdir -p /gmat/deployments/application/output /gmat/deployments/application/docs/help
+RUN mkdir -p /gmat/build/application/output /gmat/build/application/docs/help
 
 EXPOSE 8989
 

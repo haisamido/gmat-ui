@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=GMAT
+Exec=sh -c 'cd /gmat/application/bin && ./GMAT'
+Icon=/gmat/application/data/graphics/icons/GMATLinux48.xpm
+Terminal=false

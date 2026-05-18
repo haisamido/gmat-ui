@@ -1,0 +1,9 @@
+[begin] (GMAT)
+  [exec] (Chromium) {chromium --no-sandbox}
+  [exec] (Firefox) {firefox}
+  [exec] (GMAT) {cd /gmat/application/bin && ./GMAT} </gmat/application/data/graphics/icons/GMATLinux48.xpm>
+  [exec] (xterm) {xterm}
+  [separator]
+  [restart] (Restart Fluxbox)
+  [exit] (Exit)
+[end]

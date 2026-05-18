@@ -5,7 +5,6 @@
 #   task --list          # List all available tasks
 #   task up:web          # Start the web UI
 #   task up:vnc          # Start VNC GUI (browser)
-#   task up:x11          # Start the native GUI (X11)
 #   task up:console      # Start the native console
 #   task logs:web        # Follow web UI logs
 #   task down:web        # Stop the web UI
@@ -17,6 +16,7 @@ silent: true
 
 vars:
   CONTAINER_BIN: docker
+  CONTAINER_ARCH: linux/amd64
   DOCKER_SOCK: '{{.DOCKER_HOST | default (printf "unix://%s/.docker/run/docker.sock" .HOME)}}'
 
 tasks:
@@ -38,11 +38,11 @@ tasks:
     cmds:
       - "{{.CONTAINER_BIN}} compose build --no-cache gmat-web"
 
-  web:message:
+  message:web:
     desc: Show web connection info
     cmds:
       - |
-        printf '\n  GMAT Web ready at: \033[1;36mhttp://localhost:%s\033[0m\n\n' "${SERVICE_HOST_PORT:-8989}"
+        printf '\n  GMAT Web ready at: \033[1;36mhttp://localhost:%s/ui/\033[0m\n\n' "${SERVICE_HOST_PORT:-8989}"
 
   up:web:
     desc: Start the gmat-web service
@@ -51,7 +51,7 @@ tasks:
       - run:web
     cmds:
       - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-web"
-      - task: web:message
+      - task: message:web
 
   down:web:
     desc: Stop the gmat-web service
@@ -73,62 +73,6 @@ tasks:
       - "{{.CONTAINER_BIN}} compose down --rmi local gmat-web 2>/dev/null || true"
 
   # ===========================================================================
-  # X11 service (native GUI via X11 forwarding)
-  # ===========================================================================
-  build:x11:
-    desc: Build the gmat-native image (shared with console)
-    cmds:
-      - "{{.CONTAINER_BIN}} compose build gmat-x11"
-
-  rebuild:x11:
-    desc: Rebuild the gmat-native image (no cache)
-    cmds:
-      - "{{.CONTAINER_BIN}} compose build --no-cache gmat-x11"
-
-  x11:message:
-    desc: Show X11 connection info
-    cmds:
-      - |
-        printf '\n  GMAT X11 forwarding to: \033[1;36m%s\033[0m\n' "${GMAT_DISPLAY:-host.docker.internal:0}"
-        printf '  \033[1;33m(Limited: OpenGL/GLX 3D rendering is not yet supported via X11 forwarding)\033[0m\n\n'
-
-  up:x11:
-    desc: Start the gmat-x11 service (X11 GUI)
-    aliases:
-      - start:x11
-      - run:x11
-    deps:
-      - check:x11
-    cmds:
-      - |
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-          xhost +localhost
-        else
-          xhost +local:docker
-        fi
-      - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-x11"
-      - task: x11:message
-
-  down:x11:
-    desc: Stop the gmat-x11 service
-    aliases:
-      - stop:x11
-    cmds:
-      - "{{.CONTAINER_BIN}} compose rm -fs gmat-x11"
-
-  logs:x11:
-    desc: Follow gmat-x11 logs
-    cmds:
-      - "{{.CONTAINER_BIN}} compose logs -f gmat-x11"
-
-  clean:x11:
-    desc: Remove gmat-x11 container and image
-    deps:
-      - down:x11
-    cmds:
-      - "{{.CONTAINER_BIN}} compose down --rmi local gmat-x11 2>/dev/null || true"
-
-  # ===========================================================================
   # VNC service (native GUI via browser/noVNC)
   # ===========================================================================
   build:vnc:
@@ -141,7 +85,7 @@ tasks:
     cmds:
       - "{{.CONTAINER_BIN}} compose build --no-cache gmat-vnc"
 
-  vnc:message:
+  message:vnc:
     desc: Show VNC connection info
     cmds:
       - |
@@ -154,7 +98,7 @@ tasks:
       - run:vnc
     cmds:
       - "{{.CONTAINER_BIN}} compose up -d --remove-orphans gmat-vnc"
-      - task: vnc:message
+      - task: message:vnc
 
   down:vnc:
     desc: Stop the gmat-vnc service
@@ -179,16 +123,16 @@ tasks:
   # Console service (native headless)
   # ===========================================================================
   build:console:
-    desc: Build the gmat-native image (shared with x11)
+    desc: Build the gmat-build-native image
     cmds:
       - "{{.CONTAINER_BIN}} compose --profile console build gmat-console"
 
   rebuild:console:
-    desc: Rebuild the gmat-native image (no cache)
+    desc: Rebuild the gmat-build-native image (no cache)
     cmds:
       - "{{.CONTAINER_BIN}} compose --profile console build --no-cache gmat-console"
 
-  console:message:
+  message:console:
     desc: Show console connection info
     cmds:
       - |
@@ -201,7 +145,7 @@ tasks:
       - run:console
     cmds:
       - "{{.CONTAINER_BIN}} compose --profile console up -d --remove-orphans gmat-console"
-      - task: console:message
+      - task: message:console
 
   down:console:
     desc: Stop the gmat-console service
@@ -226,26 +170,23 @@ tasks:
   # All services
   # ===========================================================================
 
-  services:message:
+  message:all:
     desc: Show connection info for all services
     cmds:
-      - task: web:message
-      - task: x11:message
-      - task: vnc:message
-      - task: console:message
+      - task: message:web
+      - task: message:vnc
+      - task: message:console
 
   build:
     desc: Build all images
     deps:
       - build:web
-      - build:x11
       - build:vnc
 
   rebuild:
     desc: Rebuild all images (no cache)
     deps:
       - rebuild:web
-      - rebuild:x11
       - rebuild:vnc
 
   up:
@@ -253,15 +194,7 @@ tasks:
     aliases:
       - start
       - run
-    deps:
-      - check:x11
     cmds:
-      - |
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-          xhost +localhost
-        else
-          xhost +local:docker
-        fi
       - "{{.CONTAINER_BIN}} compose up -d --remove-orphans"
 
   down:
@@ -284,55 +217,25 @@ tasks:
     env:
       DOCKER_HOST: '{{.DOCKER_SOCK}}'
     cmds:
-      - act -n --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} pull_request
+      - act -n --bind --container-architecture {{.CONTAINER_ARCH}} --container-daemon-socket {{.DOCKER_SOCK}} pull_request
 
   ci:web:
     desc: Run CI build for web target locally
     env:
       DOCKER_HOST: '{{.DOCKER_SOCK}}'
     cmds:
-      - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:wasm
+      - act pull_request --bind --container-architecture {{.CONTAINER_ARCH}} --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:gmat-web
 
   ci:vnc:
     desc: Run CI build for vnc target locally
     env:
       DOCKER_HOST: '{{.DOCKER_SOCK}}'
     cmds:
-      - act pull_request --bind --container-architecture linux/amd64 --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:vnc
+      - act pull_request --bind --container-architecture {{.CONTAINER_ARCH}} --container-daemon-socket {{.DOCKER_SOCK}} --matrix target:gmat-vnc
 
   # ===========================================================================
   # Utility
   # ===========================================================================
-
-  check:x11:
-    desc: Check that X11 server is running on the host
-    cmds:
-      - |
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-          if ! pgrep -q Xquartz; then
-            echo "ERROR: XQuartz is not running."
-            echo "  Start XQuartz and enable 'Allow connections from network clients'"
-            echo "  in XQuartz > Settings > Security."
-            exit 1
-          fi
-          if ! lsof -i TCP:6000 -sTCP:LISTEN >/dev/null 2>&1; then
-            echo "ERROR: XQuartz is not listening on TCP port 6000."
-            echo "  Enable 'Allow connections from network clients' in XQuartz > Settings > Security,"
-            echo "  then restart XQuartz."
-            exit 1
-          fi
-          # Enable indirect GLX for OpenGL rendering from containers
-          defaults write org.xquartz.X11 enable_iglx -bool true
-        else
-          if [ -z "$DISPLAY" ]; then
-            echo "ERROR: DISPLAY is not set. Is an X11 server running?"
-            exit 1
-          fi
-          if [ ! -e /tmp/.X11-unix/X0 ]; then
-            echo "ERROR: X11 socket /tmp/.X11-unix/X0 not found. Is an X11 server running?"
-            exit 1
-          fi
-        fi
 
   help:
     desc: Show detailed help and usage information
@@ -340,7 +243,7 @@ tasks:
       - |
         echo "=== GMAT Container Tasks ==="
         echo ""
-        echo "Per-service (replace 'web' with 'vnc', 'x11', or 'console'):"
+        echo "Per-service (replace 'web' with 'vnc' or 'console'):"
         echo "  task build:web        Build image"
         echo "  task rebuild:web      Rebuild image (no cache)"
         echo "  task up:web           Start service  (aliases: start:web, run:web)"
@@ -361,5 +264,4 @@ tasks:
         echo "  task ci:dry-run       Dry-run all CI builds"
         echo ""
         echo "Utility:"
-        echo "  task check:x11        Verify X11 server is running"
         echo "  task help             Show this help"
