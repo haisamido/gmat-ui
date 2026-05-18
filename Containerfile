@@ -1,21 +1,25 @@
 # GMAT Multi-Target Build Container
 # Builds NASA's General Mission Analysis Tool for Native Linux and WebAssembly
 #
-# Two build targets:
-#   native - Console + GUI GMAT (ubuntu:26.04, both GmatConsole and GMAT binaries)
+# Three build targets:
+#   native - Console + GUI GMAT (ubuntu:26.04, GmatConsole and GMAT with OpenFrames)
+#   vnc    - Native GUI with VNC (browser-accessible 3D visualization via noVNC)
 #   wasm   - Browser-based GMAT (node:20-slim, port 8989)
 #
 # Usage:
 #   docker build -f Containerfile --target native -t gmat-x11 .
+#   docker build -f Containerfile --target vnc -t gmat-vnc .
 #   docker build -f Containerfile --target wasm -t gmat-web .
 #
-#   docker run -it gmat-x11                # Console
-#   docker run -it gmat-x11 ./GMAT         # GUI (requires X11)
+#   docker run -it gmat-x11                   # Console
+#   docker run -it gmat-x11 ./GMAT            # GUI (requires X11)
+#   docker run -p 15801:80 gmat-vnc           # VNC (open http://localhost:15801/vnc.html)
 #   docker run -p 8989:8989 gmat-web          # Web UI
 #
 # Task integration:
 #   task build                   # Build all images
 #   task up:web                  # Start the web UI
+#   task up:vnc                  # Start VNC GUI (browser)
 #   task up:x11                  # Start native GUI (X11)
 #   task up:console              # Start native console
 
