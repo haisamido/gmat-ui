@@ -292,8 +292,8 @@ RUN useradd -m -s /bin/bash -G sudo gmat && \
     echo "gmat ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/gmat && \
     chmod 0440 /etc/sudoers.d/gmat
 
-# Give gmat user ownership of the application directory
-RUN chown -R gmat:gmat /app
+# Give gmat user ownership of application and source directories
+RUN chown -R gmat:gmat /app /gmat
 
 # Switch to gmat user for all remaining setup
 USER gmat
@@ -375,9 +375,15 @@ RUN chmod +x /entrypoint.sh
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        chromium firefox && \
+        chromium-browser htop tshark && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Ensure /tmp/.X11-unix exists, gmat owns its home, and fontconfig cache is built
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix && \
+    mkdir -p /home/gmat/.cache/fontconfig && \
+    chown -R gmat:gmat /home/gmat && \
+    fc-cache -f
 
 USER gmat
 
