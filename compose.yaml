@@ -33,6 +33,12 @@ services:
       - DISPLAY=:1
     ports:
       - "127.0.0.1:${VNC_HOST_PORT:-15801}:80"
+    volumes:
+      - ./vnc/entrypoint.sh:/entrypoint.sh
+      - ./vnc/fluxbox/init:/home/gmat/.fluxbox/init
+      - ./vnc/fluxbox/overlay:/home/gmat/.fluxbox/overlay
+      - ./vnc/fluxbox/menu:/home/gmat/.fluxbox/menu
+      - ./vnc/bashrc:/home/gmat/.bashrc:ro
     networks:
       - gmat-network
     restart: unless-stopped

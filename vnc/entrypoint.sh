@@ -22,11 +22,22 @@ MULTIARCH=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
 export OSG_LIBRARY_PATH=/usr/lib/$MULTIARCH
 export OSG_FILE_PATH=/gmat/application/data:/usr/share/fonts/truetype/liberation
 
-# Set desktop wallpaper (after fluxbox has started via vncserver)
-feh --bg-center --image-bg '#030355' /gmat/application/data/graphics/splash/GMATSplashScreen.png
+# Wait for fluxbox window manager to be ready
+while ! xdpyinfo -display :1 >/dev/null 2>&1; do sleep 0.2; done
 
 # Launch applications
 xterm &
 cd /gmat/application/bin && ./GMAT 2>&1 | grep -v -E 'Glycin|pixman_region|_pixman_log_error|Gtk-CRITICAL.*width' &
 
-tail -f /dev/null
+# Set desktop wallpaper and re-apply on VNC client resize
+WALLPAPER=/gmat/application/data/graphics/splash/GMATSplashScreen.png
+PREV_RES=""
+while true; do
+  CUR_RES=$(xdpyinfo -display :1 2>/dev/null | awk '/dimensions:/{print $2}')
+  if [ -n "$CUR_RES" ] && [ "$CUR_RES" != "$PREV_RES" ]; then
+    sleep 1
+    feh --bg-center --image-bg '#030355' "$WALLPAPER"
+    PREV_RES="$CUR_RES"
+  fi
+  sleep 2
+done
