@@ -7,6 +7,12 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: gmat-web
+      args:
+        MAVEN_HTTPS_PROXY: ${MAVEN_HTTPS_PROXY}
+        HTTPS_PROXY: ${HTTPS_PROXY}
+        HTTP_PROXY: ${HTTP_PROXY}
+        NO_PROXY: ${NO_PROXY}
+        DEPLOYMENT_ENVIRO: ${DEPLOYMENT_ENVIRO}
     image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-web:${CONTAINER_TAG:-latest}
     hostname: gmat-web
     container_name: gmat-web
@@ -26,6 +32,12 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: gmat-vnc
+      args:
+        MAVEN_HTTPS_PROXY: ${MAVEN_HTTPS_PROXY}
+        HTTPS_PROXY: ${HTTPS_PROXY}
+        HTTP_PROXY: ${HTTP_PROXY}
+        NO_PROXY: ${NO_PROXY}
+        DEPLOYMENT_ENVIRO: ${DEPLOYMENT_ENVIRO}
     image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-vnc:${CONTAINER_TAG:-latest}
     hostname: gmat-vnc
     container_name: gmat-vnc
@@ -51,6 +63,12 @@ services:
       context: ${CONTAINER_CONTEXT:-.}
       dockerfile: ${CONTAINER_FILE:-Containerfile}
       target: gmat-build-native
+      args:
+        MAVEN_HTTPS_PROXY: ${MAVEN_HTTPS_PROXY}
+        HTTPS_PROXY: ${HTTPS_PROXY}
+        HTTP_PROXY: ${HTTP_PROXY}
+        NO_PROXY: ${NO_PROXY}
+        DEPLOYMENT_ENVIRO: ${DEPLOYMENT_ENVIRO}
     image: ${REGISTRY_BASE:-ghcr.io/haisamido/gmat-ui}/gmat-console:${CONTAINER_TAG:-latest}
     hostname: gmat-console
     container_name: gmat-console
